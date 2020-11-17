@@ -1,0 +1,66 @@
+import duet.impl as impl
+import duet.futuretools as futuretools
+
+
+class CompleteOnFlush(futuretools.BufferedFuture):
+    def __init__(self):
+        super().__init__()
+        self.flushed = False
+
+    def flush(self):
+        self.flushed = True
+        self.set_result(None)
+
+
+def make_task(future: futuretools.AwaitableFuture) -> impl.Task:
+    """Make a task from the given future.
+
+    We advance the task once, which just starts the generator and yields the
+    future itself.
+    """
+    task = impl.Task(future, None, None)
+    task.advance()
+    return task
+
+
+class TestReadySet:
+    def test_get_all_returns_all_ready_tasks(self):
+        task1 = make_task(futuretools.completed_future(None))
+        task2 = make_task(futuretools.completed_future(None))
+        task3 = make_task(futuretools.AwaitableFuture())
+        task4 = make_task(futuretools.completed_future(None))
+        rs = impl.ReadySet()
+        rs.register(task1)
+        rs.register(task2)
+        rs.register(task3)
+        rs.register(task4)
+        tasks = rs.get_all()
+        assert tasks == [task1, task2, task4]
+
+    def test_task_added_at_most_once(self):
+        task = make_task(futuretools.completed_future(None))
+        rs = impl.ReadySet()
+        rs.register(task)
+        rs.register(task)
+        tasks = rs.get_all()
+        assert tasks == [task]
+
+    def test_futures_flushed_if_no_task_ready(self):
+        future = CompleteOnFlush()
+        task = make_task(future)
+        rs = impl.ReadySet()
+        rs.register(task)
+        tasks = rs.get_all()
+        assert tasks == [task]
+        assert future.flushed
+
+    def test_futures_not_flushed_if_tasks_ready(self):
+        future = CompleteOnFlush()
+        task1 = make_task(future)
+        task2 = make_task(futuretools.completed_future(None))
+        rs = impl.ReadySet()
+        rs.register(task1)
+        rs.register(task2)
+        tasks = rs.get_all()
+        assert tasks == [task2]
+        assert not future.flushed

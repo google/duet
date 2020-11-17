@@ -1,0 +1,163 @@
+import threading
+from concurrent.futures import Future
+from typing import List, Tuple, Type, Union
+
+try:
+    import grpc
+    FutureTypes = Union[Future, grpc.Future]
+except ImportError:
+    FutureTypes = Future
+
+
+
+class AwaitableFuture(Future):
+    """A Future that can be awaited."""
+
+    # This is an internal variable in the Future class.
+    # We add an annotation here so mypy will let us use it.
+    _condition: threading.Condition
+
+    @staticmethod
+    def wrap(future: FutureTypes) -> 'AwaitableFuture':
+        """Creates an awaitable future that wraps the given source future."""
+        awaitable = AwaitableFuture()
+
+        def callback(future):
+            error = future.exception()
+            if error is None:
+                awaitable.try_set_result(future.result())
+            else:
+                awaitable.try_set_exception(error)
+
+        future.add_done_callback(callback)
+        return awaitable
+
+    def __await__(self):
+        yield self
+        return self.result()
+
+    def try_set_result(self, result) -> bool:
+        """Sets the result on this future if not already done.
+
+        Returns:
+            True if we set the result, False if the future was already done.
+        """
+        with self._condition:
+            if self.done():
+                return False
+            self.set_result(result)
+            return True
+
+    def try_set_exception(self, exception) -> bool:
+        """Sets an exception on this future if not already done.
+
+        Returns:
+            True if we set the exception, False if the future was already done.
+        """
+        with self._condition:
+            if self.done():
+                return False
+            self.set_exception(exception)
+            return True
+
+
+class BufferedFuture(AwaitableFuture):
+    """A future whose async operation may be buffered until flush is called.
+
+    Calling the flush method starts the asynchronous operation associated with
+    this future, if it has not been started already. By default, calling
+    result or exception will also call flush so that the async operation will
+    start and we do not deadlock waiting for a result.
+    """
+
+    def flush(self):
+        pass
+
+    def result(self, timeout=None):
+        self.flush()
+        return super().result(timeout)
+
+    def exception(self, timeout=None):
+        self.flush()
+        return super().exception(timeout)
+
+
+class BufferGroup:
+    """A group of buffered futures that need to be flushed."""
+
+    def __init__(self, latch=False):
+        """
+
+        Args:
+            latch: If True, we set a flag the first time the group is flushed;
+                we then immediately flush any futures added after that point.
+                If False, the default, we store all added futures in a list and
+                flush them the next time the group is flushed, regardless of
+                whether the group has been flushed before.
+        """
+        self._latch = latch
+        self._flushed = False
+        self._futures = []
+
+    def add(self, future):
+        if not isinstance(future, BufferedFuture):
+            return
+        if self._latch and self._flushed:
+            future.flush()
+        else:
+            self._futures.append(future)
+
+    def flush(self):
+        for f in self._futures:
+            f.flush()
+        self._futures.clear()
+        if self._latch:
+            self._flushed = True
+
+
+class FutureList(BufferedFuture):
+    """A Future that waits for a list of other Futures."""
+
+    def __init__(self, futures):
+        super().__init__()
+        if not len(futures):
+            self.set_result([])
+            return
+        self._results = [None] * len(futures)
+        self._outstanding = len(futures)
+        self._lock = threading.Lock()
+        self._buffer = BufferGroup()
+        for i, f in enumerate(futures):
+            self._buffer.add(f)
+            f.add_done_callback(lambda f, idx=i: self._handle_result(f, idx))
+
+    def _handle_result(self, future, index):
+        if self.done():
+            return
+        error = future.exception()
+        if error is not None:
+            self.try_set_exception(error)
+            return
+        result = future.result()
+        with self._lock:
+            self._results[index] = result
+            self._outstanding -= 1
+            if not self._outstanding:
+                self.try_set_result(self._results)
+
+    def flush(self):
+        self._buffer.flush()
+
+
+def completed_future(data):
+    """Return a future with the given data as its result."""
+    f = AwaitableFuture()
+    f.set_result(data)
+    return f
+
+
+def failed_future(error):
+    """Return a future that will fail with the given error."""
+    f = AwaitableFuture()
+    f.set_exception(error)
+    return f
