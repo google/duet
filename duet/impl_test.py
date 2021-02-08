@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import duet.impl as impl
 import duet.futuretools as futuretools
+import duet.impl as impl
 
 
 class CompleteOnFlush(futuretools.BufferedFuture):

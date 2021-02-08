@@ -21,9 +21,9 @@ from typing import Any, Callable, Optional
 import grpc
 import pytest
 
-import duet as duet
-import duet.impl as impl
+import duet
 import duet.futuretools as futuretools
+import duet.impl as impl
 from duet.test_utils import duet_live
 
 
@@ -150,7 +150,7 @@ class TestRun:
         assert duet.run(func, 1) == 5
         assert side_effects == []
 
-    @pytest.mark.parametrize('fail_func', fail_funcs)
+    @pytest.mark.parametrize("fail_func", fail_funcs)
     def test_failure_propagates(self, fail_func):
         with pytest.raises(Fail):
             duet.run(fail_func)
@@ -172,11 +172,11 @@ class TestPmap:
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 
-    @pytest.mark.parametrize('size', [3, 10, None])
+    @pytest.mark.parametrize("size", [3, 10, None])
     def test_failure(self, size):
         async def foo(i):
             if i == 7:
-                raise ValueError('I do not like 7 :-(')
+                raise ValueError("I do not like 7 :-(")
             return 7 * i
 
         with pytest.raises(ValueError):
@@ -287,7 +287,7 @@ class TestScope:
                     scope.spawn(func, a, b)
         assert results == {(a, b): a * b for a in range(10) for b in range(10)}
 
-    @pytest.mark.parametrize('fail_func', fail_funcs)
+    @pytest.mark.parametrize("fail_func", fail_funcs)
     @duet_live
     async def test_failure_in_spawned_task(self, fail_func):
         after_fail = False
@@ -326,16 +326,16 @@ class TestScope:
             async with duet.new_scope() as scope:
                 f = futuretools.AwaitableFuture()
                 scope.spawn(lambda: f)
-                f.set_exception(ValueError('oops!'))
+                f.set_exception(ValueError("oops!"))
                 await futuretools.AwaitableFuture()
 
-        with pytest.raises(ValueError, match='oops!') as exc_info:
+        with pytest.raises(ValueError, match="oops!") as exc_info:
             duet.run(func)
 
-        stack_trace = ''.join(
+        stack_trace = "".join(
             traceback.format_exception(exc_info.type, exc_info.value, exc_info.tb)
         )
-        assert 'Interrupt' not in stack_trace
+        assert "Interrupt" not in stack_trace
         assert isinstance(exc_info.value.__context__, impl.Interrupt)
         assert exc_info.value.__suppress_context__
 
@@ -398,6 +398,6 @@ class ConcreteGrpcFuture(grpc.Future):
         pass
 
 
-@pytest.mark.parametrize('cls', [ConcreteGrpcFuture, Future])
+@pytest.mark.parametrize("cls", [ConcreteGrpcFuture, Future])
 def test_awaitable_future(cls):
     assert isinstance(duet.awaitable(cls()), futuretools.AwaitableFuture)
