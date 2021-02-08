@@ -54,6 +54,7 @@ from typing import (
 
 try:
     import grpc
+
     FutureTypes = (Future, grpc.Future)
 except ImportError:
     grpc = None
