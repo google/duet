@@ -31,7 +31,8 @@ jobs:
         run: pip install -r dev/requirements.txt
       - name: Type check
         run: mypy duet
-        env: PYTHONPATH=.
+        env:
+          PYTHONPATH: '.'
   lint:
     name: Lint check
     runs-on: ubuntu-16.04
