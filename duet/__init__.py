@@ -32,6 +32,8 @@ which makes it possible to implement things like the pmap function below which
 wraps async code into a generator interface.
 """
 
+from __future__ import annotations
+
 import abc
 import collections
 import contextlib
@@ -190,7 +192,7 @@ pstarmap = sync(pstarmap_async)
 
 
 async def pmap_aiter(
-    scope: "Scope",
+    scope: Scope,
     func: Callable[[T], Awaitable[U]],
     iterable: aitertools.AnyIterable[T],
     size: Optional[int] = None,
@@ -243,7 +245,7 @@ async def pmap_aiter(
 
 
 def pstarmap_aiter(
-    scope: "Scope",
+    scope: Scope,
     func: Callable[..., Awaitable[U]],
     iterable: aitertools.AnyIterable[Any],
     size: Optional[int] = None,
@@ -264,7 +266,7 @@ def pstarmap_aiter(
 
 
 @contextlib.asynccontextmanager
-async def new_scope() -> AsyncIterator["Scope"]:
+async def new_scope() -> AsyncIterator[Scope]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
@@ -372,7 +374,7 @@ class Limiter:
             await f
         self.count += 1
 
-    async def acquire(self) -> "Slot":
+    async def acquire(self) -> Slot:
         await self.__aenter__()
         return Slot(self._release)
 
