@@ -22,5 +22,15 @@ However, duet differs from trio in two major ways:
   have found that this can simplify the process of refactoring code to be
   asynchronous because you don't have to completely separate the sync and async
   parts of your codebase all at once.
+
+## Installation
   
+Install from pypi:
+
+```
+pip install duet-async
+```
+
+## Note
+
 duet is not an official Google project.
