@@ -39,7 +39,6 @@ import collections
 import contextlib
 import functools
 import inspect
-from concurrent.futures import Future
 from typing import (
     Any,
     AsyncIterator,
@@ -51,13 +50,13 @@ from typing import (
     Optional,
     Set,
     Tuple,
-    Type,
     TypeVar,
 )
 
 import duet.aitertools as aitertools
 import duet.futuretools as futuretools
-from duet import impl
+import duet.impl as impl
+from duet._version import __version__
 
 T = TypeVar("T")
 U = TypeVar("U")
