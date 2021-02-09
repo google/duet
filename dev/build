@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+if [ -d "dist" ]; then
+  rm -rf dist/
+fi
+
+python setup.py sdist bdist_wheel
+
+if [ "$1" == "--upload" ]; then
+  twine upload dist/*
+fi
