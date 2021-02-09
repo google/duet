@@ -49,16 +49,9 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     TypeVar,
 )
-
-try:
-    import grpc
-
-    FutureTypes = (Future, grpc.Future)
-except ImportError:
-    grpc = None
-    FutureTypes = (Future,)
 
 import duet.aitertools as aitertools
 import duet.futuretools as futuretools
@@ -125,7 +118,7 @@ def awaitable(value):
     """Wraps a value to ensure that it is awaitable."""
     if inspect.isawaitable(value):
         return value
-    if isinstance(value, FutureTypes):
+    if isinstance(value, futuretools.FutureClasses):
         return futuretools.AwaitableFuture.wrap(value)
     return _awaitable_value(value)
 

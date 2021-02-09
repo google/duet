@@ -15,10 +15,7 @@
 import inspect
 import sys
 import traceback
-from concurrent.futures import Future
-from typing import Any, Callable, Optional
 
-import grpc
 import pytest
 
 import duet
@@ -370,34 +367,3 @@ async def test_multiple_calls_to_future_set_result():
 
         scope.spawn(set_results, f0, f1)
         await f1
-
-
-class ConcreteGrpcFuture(grpc.Future):
-    def cancel(self) -> bool:
-        return True
-
-    def cancelled(self) -> bool:
-        return True
-
-    def running(self) -> bool:
-        return True
-
-    def done(self) -> bool:
-        return True
-
-    def result(self, timeout: Optional[int] = None) -> Any:
-        return 1234
-
-    def exception(self, timeout=None) -> Optional[BaseException]:
-        return None
-
-    def add_done_callback(self, fn: Callable[[Any], Any]) -> None:
-        pass
-
-    def traceback(self, timeout=None):
-        pass
-
-
-@pytest.mark.parametrize("cls", [ConcreteGrpcFuture, Future])
-def test_awaitable_future(cls):
-    assert isinstance(duet.awaitable(cls()), futuretools.AwaitableFuture)

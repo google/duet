@@ -14,14 +14,14 @@
 
 import threading
 from concurrent.futures import Future
-from typing import Union
+from typing import Tuple, Type
 
 try:
     import grpc
 
-    FutureTypes = Union[Future, grpc.Future]
+    FutureClasses: Tuple[Type, ...] = (Future, grpc.Future)
 except ImportError:
-    FutureTypes = Future
+    FutureClasses = (Future,)
 
 
 class AwaitableFuture(Future):
@@ -32,7 +32,7 @@ class AwaitableFuture(Future):
     _condition: threading.Condition
 
     @staticmethod
-    def wrap(future: FutureTypes) -> "AwaitableFuture":
+    def wrap(future: Future) -> "AwaitableFuture":
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture()
 

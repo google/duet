@@ -32,7 +32,7 @@ def make_task(future: futuretools.AwaitableFuture) -> impl.Task:
     We advance the task once, which just starts the generator and yields the
     future itself.
     """
-    task = impl.Task(future, None, None)
+    task = impl.Task(future, impl.Scheduler(), None)
     task.advance()
     return task
 
