@@ -165,19 +165,19 @@ class TestPmap:
             finished.append(value)
             return value * 2
 
-        results = duet.pmap(func, range(10), size=10)
+        results = duet.pmap(func, range(10), limit=10)
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 
-    @pytest.mark.parametrize("size", [3, 10, None])
-    def test_failure(self, size):
+    @pytest.mark.parametrize("limit", [3, 10, None])
+    def test_failure(self, limit):
         async def foo(i):
             if i == 7:
                 raise ValueError("I do not like 7 :-(")
             return 7 * i
 
         with pytest.raises(ValueError):
-            duet.pmap(foo, range(100), size=size)
+            duet.pmap(foo, range(100), limit=limit)
 
 
 class TestPstarmap:
@@ -194,7 +194,7 @@ class TestPstarmap:
             return value * 2
 
         args_iter = ((a, b) for a in range(2) for b in range(5))
-        results = duet.pstarmap(func, args_iter, size=10)
+        results = duet.pstarmap(func, args_iter, limit=10)
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 
@@ -212,7 +212,7 @@ class TestPmapAsync:
             finished.append(value)
             return value * 2
 
-        results = await duet.pmap_async(func, range(10), size=10)
+        results = await duet.pmap_async(func, range(10), limit=10)
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 
@@ -227,7 +227,7 @@ class TestPmapAsync:
             live.remove(i)
             return num_live
 
-        num_lives = await duet.pmap_async(func, range(100), size=10)
+        num_lives = await duet.pmap_async(func, range(100), limit=10)
         assert all(num_live <= 10 for num_live in num_lives)
 
 
@@ -246,7 +246,7 @@ class TestPstarmapAsync:
             return value * 2
 
         args_iter = ((a, b) for a in range(2) for b in range(5))
-        results = await duet.pstarmap_async(func, args_iter, size=10)
+        results = await duet.pstarmap_async(func, args_iter, limit=10)
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 

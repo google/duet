@@ -151,20 +151,20 @@ def awaitable_func(function):
 async def pmap_async(
     func: Callable[[T], Awaitable[U]],
     iterable: aitertools.AnyIterable[T],
-    size: Optional[int] = None,
+    limit: Optional[int] = None,
 ) -> List[U]:
     """Apply an async function to every item in iterable.
 
     Args:
         func: Async function called for each element in iterable.
         iterable: Iterated over to produce values that are fed to func.
-        size: The maximum number of function calls to make concurrently.
+        limit: The maximum number of function calls to make concurrently.
 
     Returns:
         List of results of all function calls.
     """
     async with new_scope() as scope:
-        return [x async for x in pmap_aiter(scope, func, iterable, size)]
+        return [x async for x in pmap_aiter(scope, func, iterable, limit)]
 
 
 pmap = sync(pmap_async)
@@ -173,19 +173,19 @@ pmap = sync(pmap_async)
 async def pstarmap_async(
     func: Callable[..., Awaitable[U]],
     iterable: aitertools.AnyIterable[Any],
-    size: Optional[int] = None,
+    limit: Optional[int] = None,
 ) -> List[U]:
     """Apply an async function to every tuple of args in iterable.
 
     Args:
         func: Async function called with each tuple of args in iterable.
         iterable: Iterated over to produce arg tuples that are fed to func.
-        size: The maximum number of function calls to make concurrently.
+        limit: The maximum number of function calls to make concurrently.
 
     Returns:
         List of results of all function calls.
     """
-    return await pmap_async(lambda args: func(*args), iterable, size)
+    return await pmap_async(lambda args: func(*args), iterable, limit)
 
 
 pstarmap = sync(pstarmap_async)
@@ -195,7 +195,7 @@ async def pmap_aiter(
     scope: Scope,
     func: Callable[[T], Awaitable[U]],
     iterable: aitertools.AnyIterable[T],
-    size: Optional[int] = None,
+    limit: Optional[int] = None,
 ) -> AsyncIterator[U]:
     """Apply an async function to every item in iterable.
 
@@ -203,7 +203,7 @@ async def pmap_aiter(
         scope: Scope in which the returned async iterator must be used.
         func: Async function called for each element in iterable.
         iterable: Iterated over to produce values that are fed to func.
-        size: The maximum number of function calls to make concurrently.
+        limit: The maximum number of function calls to make concurrently.
 
     Returns:
         Asynchronous iterator that yields results in order as they become
@@ -220,7 +220,7 @@ async def pmap_aiter(
 
     async def generate():
         try:
-            limiter = Limiter(size)
+            limiter = Limiter(limit)
             async with new_scope() as gen_scope:
                 async for i, arg in aitertools.aenumerate(iterable):
                     slot = await limiter.acquire()
@@ -248,7 +248,7 @@ def pstarmap_aiter(
     scope: Scope,
     func: Callable[..., Awaitable[U]],
     iterable: aitertools.AnyIterable[Any],
-    size: Optional[int] = None,
+    limit: Optional[int] = None,
 ) -> AsyncIterator[U]:
     """Apply an async function to every tuple of args in iterable.
 
@@ -256,13 +256,13 @@ def pstarmap_aiter(
         scope: Scope in which the returned async iterator must be used.
         func: Async function called with each tuple of args in iterable.
         iterable: Iterated over to produce arg tuples that are fed to func.
-        size: The maximum number of function calls to make concurrently.
+        limit: The maximum number of function calls to make concurrently.
 
     Returns:
         Asynchronous iterator that yields results in order as they become
         available.
     """
-    return pmap_aiter(scope, lambda args: func(*args), iterable, size)
+    return pmap_aiter(scope, lambda args: func(*args), iterable, limit)
 
 
 @contextlib.asynccontextmanager
