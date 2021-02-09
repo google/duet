@@ -14,6 +14,8 @@
 
 """Internal implementation details for duet."""
 
+from __future__ import annotations
+
 import enum
 import signal
 import threading
@@ -54,8 +56,8 @@ class Task(Generic[T]):
     def __init__(
         self,
         awaitable: Awaitable[T],
-        scheduler: "Scheduler",
-        main_task: Optional["Task"],
+        scheduler: Scheduler,
+        main_task: Optional[Task],
     ) -> None:
         self.scheduler = scheduler
         self.main_task = main_task
@@ -89,7 +91,7 @@ class Task(Generic[T]):
     def done(self) -> bool:
         return self._state == TaskState.SUCCEEDED or self._state == TaskState.FAILED
 
-    def add_ready_callback(self, callback: Callable[["Task"], Any]) -> None:
+    def add_ready_callback(self, callback: Callable[[Task], Any]) -> None:
         self._check_state(TaskState.WAITING)
         self._ready_future.add_done_callback(lambda _: callback(self))
 
@@ -160,7 +162,7 @@ def current_task() -> Task:
         raise RuntimeError("Can only be called from an async function.")
 
 
-def current_scheduler() -> "Scheduler":
+def current_scheduler() -> Scheduler:
     """Gets the currently-running duet scheduler.
 
     This must be called from within a running async function, or else it will
