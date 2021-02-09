@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import threading
 from concurrent.futures import Future
-from typing import Tuple, Type
+from typing import Any, Callable, Optional, Tuple, Type, TypeVar
+
+from typing_extensions import Protocol
 
 try:
     import grpc
@@ -22,6 +26,20 @@ try:
     FutureClasses: Tuple[Type, ...] = (Future, grpc.Future)
 except ImportError:
     FutureClasses = (Future,)
+
+
+T = TypeVar("T")
+
+
+class FutureLike(Protocol[T]):
+    def result(self) -> T:
+        ...
+
+    def exception(self) -> Optional[Exception]:
+        ...
+
+    def add_done_callback(self, fn: Callable[[FutureLike[T]], Any]) -> None:
+        ...
 
 
 class AwaitableFuture(Future):
@@ -32,7 +50,7 @@ class AwaitableFuture(Future):
     _condition: threading.Condition
 
     @staticmethod
-    def wrap(future: Future) -> "AwaitableFuture":
+    def wrap(future: FutureLike) -> AwaitableFuture:
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture()
 
