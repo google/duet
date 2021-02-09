@@ -16,7 +16,6 @@ import collections
 from typing import (
     AsyncIterable,
     AsyncIterator,
-    Callable,
     Deque,
     Generic,
     Iterable,
@@ -28,7 +27,7 @@ from typing import (
 
 import duet.futuretools as futuretools
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 AnyIterable = Union[Iterable[T], AsyncIterable[T]]
 
@@ -81,21 +80,21 @@ class AsyncCollector(Generic[T]):
 
     def add(self, value: T) -> None:
         if self._done:
-            raise RuntimeError('already done.')
+            raise RuntimeError("already done.")
         self._buffer.append(value)
         if self._waiter:
             self._waiter.try_set_result(None)
 
     def done(self) -> None:
         if self._done:
-            raise RuntimeError('already done.')
+            raise RuntimeError("already done.")
         self._done = True
         if self._waiter:
             self._waiter.try_set_result(None)
 
     def error(self, error: Exception) -> None:
         if self._done:
-            raise RuntimeError('already done.')
+            raise RuntimeError("already done.")
         self._done = True
         self._error = error
         if self._waiter:

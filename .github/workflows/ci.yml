@@ -1,0 +1,96 @@
+name: Continuous Integration
+
+on: [pull_request]
+
+jobs:
+  format:
+    name: Format check
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v1
+        with:
+          python-version: '3.7'
+          architecture: 'x64'
+      - name: Install black
+        run: pip install -r dev/requirements.txt
+      - name: Format
+        run: isort duet --check && black duet --check
+  mypy:
+    name: Type check
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: '3.7'
+          architecture: 'x64'
+      - name: Install mypy
+        run: pip install -r dev/requirements.txt
+      - name: Type check
+        run: mypy duet
+        env:
+          PYTHONPATH: '.'
+  lint:
+    name: Lint check
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: '3.7'
+          architecture: 'x64'
+      - name: Install pylint
+        run: pip install -r dev/requirements.txt
+      - name: Lint
+        run: pylint duet
+  test-linux:
+    name: Pytest Linux
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9']
+    runs-on: ubuntu-16.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: 'x64'
+      - name: Install requirements
+        run: pip install -r dev/requirements.txt
+      - name: Pytest check
+        run: pytest duet
+  test-windows:
+    name: Pytest Windows
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9']
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: 'x64'
+      - name: Install requirements
+        run: pip install -r dev/requirements.txt
+      - name: Pytest Windows
+        run: pytest duet
+  test-macos:
+    name: Pytest MacOS
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9']
+    runs-on: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: 'x64'
+      - name: Install requirements
+        run: pip install -r dev/requirements.txt
+      - name: Pytest check
+        run: pytest duet

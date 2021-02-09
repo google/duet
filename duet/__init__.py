@@ -49,17 +49,16 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     TypeVar,
 )
-
-import grpc
 
 import duet.aitertools as aitertools
 import duet.futuretools as futuretools
 from duet import impl
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
@@ -83,7 +82,7 @@ def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
     sig = inspect.signature(f)
     first_arg = next(iter(sig.parameters), None)
 
-    if first_arg == 'self' or first_arg == 'cls':
+    if first_arg == "self" or first_arg == "cls":
         # For class or instance methods, look up the method to call on the given
         # class or instance. This ensures that we call the right method even it
         # has been overridden in a subclass. To illustrate, consider:
@@ -119,7 +118,7 @@ def awaitable(value):
     """Wraps a value to ensure that it is awaitable."""
     if inspect.isawaitable(value):
         return value
-    if isinstance(value, (Future, grpc.Future)):
+    if isinstance(value, futuretools.FutureClasses):
         return futuretools.AwaitableFuture.wrap(value)
     return _awaitable_value(value)
 
@@ -136,8 +135,8 @@ def awaitable_func(function):
 
     if inspect.isgeneratorfunction(function):
         raise TypeError(
-            'cannot use generator function with duet; please convert to '
-            f'async function instead: {function.__name__}'
+            "cannot use generator function with duet; please convert to "
+            f"async function instead: {function.__name__}"
         )
 
     @functools.wraps(function)
@@ -191,7 +190,7 @@ pstarmap = sync(pstarmap_async)
 
 
 async def pmap_aiter(
-    scope: 'Scope',
+    scope: "Scope",
     func: Callable[[T], Awaitable[U]],
     iterable: aitertools.AnyIterable[T],
     size: Optional[int] = None,
@@ -244,7 +243,7 @@ async def pmap_aiter(
 
 
 def pstarmap_aiter(
-    scope: 'Scope',
+    scope: "Scope",
     func: Callable[..., Awaitable[U]],
     iterable: aitertools.AnyIterable[Any],
     size: Optional[int] = None,
@@ -265,7 +264,7 @@ def pstarmap_aiter(
 
 
 @contextlib.asynccontextmanager
-async def new_scope() -> AsyncIterator['Scope']:
+async def new_scope() -> AsyncIterator["Scope"]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
@@ -298,7 +297,7 @@ async def new_scope() -> AsyncIterator['Scope']:
         # Interrupt remaining tasks.
         for task in tasks:
             if not task.done:
-                task.interrupt(main_task, RuntimeError('scope exited'))
+                task.interrupt(main_task, RuntimeError("scope exited"))
         # Finish remaining tasks while ignoring further interrupts.
         main_task.interruptible = False
         await finish_tasks()
@@ -373,7 +372,7 @@ class Limiter:
             await f
         self.count += 1
 
-    async def acquire(self) -> 'Slot':
+    async def acquire(self) -> "Slot":
         await self.__aenter__()
         return Slot(self._release)
 

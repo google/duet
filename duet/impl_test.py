@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import duet.impl as impl
 import duet.futuretools as futuretools
+import duet.impl as impl
 
 
 class CompleteOnFlush(futuretools.BufferedFuture):
@@ -32,7 +32,7 @@ def make_task(future: futuretools.AwaitableFuture) -> impl.Task:
     We advance the task once, which just starts the generator and yields the
     future itself.
     """
-    task = impl.Task(future, None, None)
+    task = impl.Task(future, impl.Scheduler(), None)
     task.advance()
     return task
 

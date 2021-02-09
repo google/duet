@@ -19,11 +19,11 @@ import signal
 import threading
 from concurrent.futures import Future
 from contextvars import ContextVar
-from typing import Any, Awaitable, Callable, Coroutine, Generic, List, Optional, Set, TypeVar
+from typing import Any, Awaitable, Callable, cast, Coroutine, Generic, List, Optional, Set, TypeVar
 
 import duet.futuretools as futuretools
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Interrupt(BaseException):
@@ -42,17 +42,20 @@ class TaskStateError(Exception):
     def __init__(self, state: TaskState, expected_state: TaskState) -> None:
         self.state = state
         self.expected_state = expected_state
-        super().__init__(f'state: {state}, expected: {expected_state}')
+        super().__init__(f"state: {state}, expected: {expected_state}")
 
 
 # Sentinel local variable name that we insert into coroutines.
 # This allows us to detect whether a task is running when we get Ctrl-C.
-LOCALS_TASK_SCHEDULER = '__duet_task_scheduler__'
+LOCALS_TASK_SCHEDULER = "__duet_task_scheduler__"
 
 
 class Task(Generic[T]):
     def __init__(
-        self, awaitable: Awaitable[T], scheduler: 'Scheduler', main_task: Optional['Task']
+        self,
+        awaitable: Awaitable[T],
+        scheduler: "Scheduler",
+        main_task: Optional["Task"],
     ) -> None:
         self.scheduler = scheduler
         self.main_task = main_task
@@ -80,13 +83,13 @@ class Task(Generic[T]):
     @property
     def result(self) -> T:
         self._check_state(TaskState.SUCCEEDED)
-        return self._result
+        return cast(T, self._result)
 
     @property
     def done(self) -> bool:
         return self._state == TaskState.SUCCEEDED or self._state == TaskState.FAILED
 
-    def add_ready_callback(self, callback: Callable[['Task'], Any]) -> None:
+    def add_ready_callback(self, callback: Callable[["Task"], Any]) -> None:
         self._check_state(TaskState.WAITING)
         self._ready_future.add_done_callback(lambda _: callback(self))
 
@@ -121,7 +124,7 @@ class Task(Generic[T]):
                 raise
         else:
             if not isinstance(f, Future):
-                raise TypeError(f'expected Future, got {type(f)}: {f}')
+                raise TypeError(f"expected Future, got {type(f)}: {f}")
             ready_future = futuretools.AwaitableFuture()
             f.add_done_callback(lambda _: ready_future.try_set_result(None))
             self._future = f
@@ -142,7 +145,7 @@ class Task(Generic[T]):
         self.main_task = None
 
 
-_current_task: ContextVar[Task] = ContextVar('current_task')
+_current_task: ContextVar[Task] = ContextVar("current_task")
 
 
 def current_task() -> Task:
@@ -154,10 +157,10 @@ def current_task() -> Task:
     try:
         return _current_task.get()
     except LookupError:
-        raise RuntimeError('Can only be called from an async function.')
+        raise RuntimeError("Can only be called from an async function.")
 
 
-def current_scheduler() -> 'Scheduler':
+def current_scheduler() -> "Scheduler":
     """Gets the currently-running duet scheduler.
 
     This must be called from within a running async function, or else it will
@@ -264,7 +267,7 @@ class Scheduler:
         are no currently active tasks.
         """
         if not self.active_tasks:
-            raise RuntimeError('tick called with no active tasks')
+            raise RuntimeError("tick called with no active tasks")
 
         if self._interrupted:
             task = next(iter(self.active_tasks))
