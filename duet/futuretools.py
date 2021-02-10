@@ -50,6 +50,10 @@ class AwaitableFuture(Future):
     _condition: threading.Condition
 
     @staticmethod
+    def isfuture(value: Any) -> bool:
+        return isinstance(value, FutureClasses)
+
+    @staticmethod
     def wrap(future: FutureLike) -> AwaitableFuture:
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture()

@@ -18,7 +18,6 @@ from typing import Any, Callable, Optional
 import pytest
 
 import duet
-import duet.futuretools as futuretools
 
 try:
     import grpc
@@ -27,7 +26,7 @@ except ImportError:
 
 
 def test_awaitable_future():
-    assert isinstance(duet.awaitable(Future()), futuretools.AwaitableFuture)
+    assert isinstance(duet.awaitable(Future()), duet.AwaitableFuture)
 
 
 @pytest.mark.skipif(grpc is None, reason="only run if grpc is installed")
@@ -57,4 +56,4 @@ def test_awaitable_grpc_future():
         def traceback(self, timeout=None):
             pass
 
-    assert isinstance(duet.awaitable(ConcreteGrpcFuture()), futuretools.AwaitableFuture)
+    assert isinstance(duet.awaitable(ConcreteGrpcFuture()), duet.AwaitableFuture)

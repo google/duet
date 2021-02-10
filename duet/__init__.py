@@ -53,10 +53,10 @@ from typing import (
     TypeVar,
 )
 
-import duet.aitertools as aitertools
-import duet.futuretools as futuretools
 import duet.impl as impl
 from duet._version import __version__
+from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector, azip
+from duet.futuretools import AwaitableFuture, BufferedFuture, completed_future, failed_future
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -104,8 +104,11 @@ def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
         @functools.wraps(f)
         def wrapped(self_or_cls, *args, **kw):
             method = getattr(self_or_cls, f.__name__, None)
+            if inspect.ismethod(method) and id(method.__func__) == wrapped_id:
+                return run(f, self_or_cls, *args, **kw)
             return run(method, *args, **kw)
 
+        wrapped_id = id(wrapped)
     else:
 
         @functools.wraps(f)
@@ -119,8 +122,8 @@ def awaitable(value):
     """Wraps a value to ensure that it is awaitable."""
     if inspect.isawaitable(value):
         return value
-    if isinstance(value, futuretools.FutureClasses):
-        return futuretools.AwaitableFuture.wrap(value)
+    if AwaitableFuture.isfuture(value):
+        return AwaitableFuture.wrap(value)
     return _awaitable_value(value)
 
 
@@ -149,7 +152,7 @@ def awaitable_func(function):
 
 async def pmap_async(
     func: Callable[[T], Awaitable[U]],
-    iterable: aitertools.AnyIterable[T],
+    iterable: AnyIterable[T],
     limit: Optional[int] = None,
 ) -> List[U]:
     """Apply an async function to every item in iterable.
@@ -171,7 +174,7 @@ pmap = sync(pmap_async)
 
 async def pstarmap_async(
     func: Callable[..., Awaitable[U]],
-    iterable: aitertools.AnyIterable[Any],
+    iterable: AnyIterable[Any],
     limit: Optional[int] = None,
 ) -> List[U]:
     """Apply an async function to every tuple of args in iterable.
@@ -193,7 +196,7 @@ pstarmap = sync(pstarmap_async)
 async def pmap_aiter(
     scope: Scope,
     func: Callable[[T], Awaitable[U]],
-    iterable: aitertools.AnyIterable[T],
+    iterable: AnyIterable[T],
     limit: Optional[int] = None,
 ) -> AsyncIterator[U]:
     """Apply an async function to every item in iterable.
@@ -208,7 +211,7 @@ async def pmap_aiter(
         Asynchronous iterator that yields results in order as they become
         available.
     """
-    collector = aitertools.AsyncCollector[Tuple[int, U]]()
+    collector = AsyncCollector[Tuple[int, U]]()
 
     async def task(i, arg, slot):
         try:
@@ -221,7 +224,7 @@ async def pmap_aiter(
         try:
             limiter = Limiter(limit)
             async with new_scope() as gen_scope:
-                async for i, arg in aitertools.aenumerate(iterable):
+                async for i, arg in aenumerate(iterable):
                     slot = await limiter.acquire()
                     gen_scope.spawn(task, i, arg, slot)
         except Exception as e:
@@ -246,7 +249,7 @@ async def pmap_aiter(
 def pstarmap_aiter(
     scope: Scope,
     func: Callable[..., Awaitable[U]],
-    iterable: aitertools.AnyIterable[Any],
+    iterable: AnyIterable[Any],
     limit: Optional[int] = None,
 ) -> AsyncIterator[U]:
     """Apply an async function to every tuple of args in iterable.
@@ -359,8 +362,8 @@ class Limiter:
     def __init__(self, capacity: Optional[int]) -> None:
         self.capacity = capacity
         self.count = 0
-        self.waiters: Deque[futuretools.AwaitableFuture] = collections.deque()
-        self.available_waiters: List[futuretools.AwaitableFuture] = []
+        self.waiters: Deque[AwaitableFuture] = collections.deque()
+        self.available_waiters: List[AwaitableFuture] = []
 
     def is_available(self) -> bool:
         """Returns True if the limiter is available, False otherwise."""
@@ -368,7 +371,7 @@ class Limiter:
 
     async def __aenter__(self):
         if not self.is_available():
-            f = futuretools.AwaitableFuture()
+            f = AwaitableFuture()
             self.waiters.append(f)
             await f
         self.count += 1
@@ -397,15 +400,15 @@ class Limiter:
         limiter is currently available, to ensure that throttled iterators do
         not race ahead of downstream work.
         """
-        f = futuretools.AwaitableFuture()
+        f = AwaitableFuture()
         if self.is_available():
             f.set_result(None)
         else:
             self.available_waiters.append(f)
         await f
 
-    async def throttle(self, iterable: aitertools.AnyIterable[T]) -> AsyncIterator[T]:
-        async for value in aitertools.aiter(iterable):
+    async def throttle(self, iterable: AnyIterable[T]) -> AsyncIterator[T]:
+        async for value in aiter(iterable):
             await self.available()
             yield value
 
@@ -446,27 +449,27 @@ class LimitedScope(abc.ABC):
     async def pmap_async(
         self,
         func: Callable[[T], Awaitable[U]],
-        iterable: aitertools.AnyIterable[T],
+        iterable: AnyIterable[T],
     ) -> List[U]:
         return [x async for x in self.pmap_aiter(func, iterable)]
 
     def pmap_aiter(
         self,
         func: Callable[[T], Awaitable[U]],
-        iterable: aitertools.AnyIterable[T],
+        iterable: AnyIterable[T],
     ) -> AsyncIterator[U]:
         return pmap_aiter(self.scope, func, self.limiter.throttle(iterable))
 
     async def pstarmap_async(
         self,
         func: Callable[..., Awaitable[U]],
-        iterable: aitertools.AnyIterable[Any],
+        iterable: AnyIterable[Any],
     ) -> List[U]:
         return [x async for x in self.pstarmap_aiter(func, iterable)]
 
     def pstarmap_aiter(
         self,
         func: Callable[..., Awaitable[U]],
-        iterable: aitertools.AnyIterable[Any],
+        iterable: AnyIterable[Any],
     ) -> AsyncIterator[U]:
         return pstarmap_aiter(self.scope, func, self.limiter.throttle(iterable))
