@@ -41,15 +41,16 @@ def duet_sync_callback(ctx: FunctionContext) -> Type:
         ctx.api.msg.fail(f"expected Callable[..., Awaitable[T]], got {func_type}", ctx.context)
         return ctx.default_return_type
 
-    # Note that the type of an async function is Coroutine[Any, Any, T], which
-    # is a subtype of Awaitable[T]. See:
+    # Note that the return type of an async function is Coroutine[Any, Any, T],
+    # which is a subtype of Awaitable[T]. See:
     # https://mypy.readthedocs.io/en/stable/more_types.html#typing-async-await
-    coro_type = get_proper_type(func_type.ret_type)
-    if not isinstance(coro_type, Instance) or coro_type.type.name != "Coroutine":
-        ctx.api.msg.fail(f"expected return type Awaitable[T], got {coro_type}", ctx.context)
+    ret_type = get_proper_type(func_type.ret_type)
+    if not (isinstance(ret_type, Instance) and ret_type.type.name == "Coroutine"):
+        if not func_type.implicit:
+            ctx.api.msg.fail(f"expected return type Awaitable[T], got {ret_type}", ctx.context)
         return ctx.default_return_type
 
-    result_type = coro_type.args[-1]
+    result_type = ret_type.args[-1]
     return func_type.copy_modified(ret_type=result_type)
 
 

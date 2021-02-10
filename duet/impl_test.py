@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import duet.futuretools as futuretools
+import duet
 import duet.impl as impl
 
 
-class CompleteOnFlush(futuretools.BufferedFuture):
+class CompleteOnFlush(duet.BufferedFuture):
     def __init__(self):
         super().__init__()
         self.flushed = False
@@ -26,7 +26,7 @@ class CompleteOnFlush(futuretools.BufferedFuture):
         self.set_result(None)
 
 
-def make_task(future: futuretools.AwaitableFuture) -> impl.Task:
+def make_task(future: duet.AwaitableFuture) -> impl.Task:
     """Make a task from the given future.
 
     We advance the task once, which just starts the generator and yields the
@@ -39,10 +39,10 @@ def make_task(future: futuretools.AwaitableFuture) -> impl.Task:
 
 class TestReadySet:
     def test_get_all_returns_all_ready_tasks(self):
-        task1 = make_task(futuretools.completed_future(None))
-        task2 = make_task(futuretools.completed_future(None))
-        task3 = make_task(futuretools.AwaitableFuture())
-        task4 = make_task(futuretools.completed_future(None))
+        task1 = make_task(duet.completed_future(None))
+        task2 = make_task(duet.completed_future(None))
+        task3 = make_task(duet.AwaitableFuture())
+        task4 = make_task(duet.completed_future(None))
         rs = impl.ReadySet()
         rs.register(task1)
         rs.register(task2)
@@ -52,7 +52,7 @@ class TestReadySet:
         assert tasks == [task1, task2, task4]
 
     def test_task_added_at_most_once(self):
-        task = make_task(futuretools.completed_future(None))
+        task = make_task(duet.completed_future(None))
         rs = impl.ReadySet()
         rs.register(task)
         rs.register(task)
@@ -71,7 +71,7 @@ class TestReadySet:
     def test_futures_not_flushed_if_tasks_ready(self):
         future = CompleteOnFlush()
         task1 = make_task(future)
-        task2 = make_task(futuretools.completed_future(None))
+        task2 = make_task(duet.completed_future(None))
         rs = impl.ReadySet()
         rs.register(task1)
         rs.register(task2)

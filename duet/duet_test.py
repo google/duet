@@ -19,18 +19,16 @@ import traceback
 import pytest
 
 import duet
-import duet.futuretools as futuretools
 import duet.impl as impl
-from duet.test_utils import duet_live
 
 
 async def mul(a, b):
-    await futuretools.completed_future(None)
+    await duet.completed_future(None)
     return a * b
 
 
 async def add(a, b):
-    await futuretools.completed_future(None)
+    await duet.completed_future(None)
     return a + b
 
 
@@ -39,7 +37,7 @@ class Fail(Exception):
 
 
 async def fail_after_await():
-    await futuretools.completed_future(None)
+    await duet.completed_future(None)
     raise Fail()
 
 
@@ -53,7 +51,7 @@ fail_funcs = [fail_after_await, fail_before_await]
 class TestAwaitableFunc:
     def test_wrap_async_func(self):
         async def async_func(a, b):
-            await futuretools.completed_future(None)
+            await duet.completed_future(None)
             return a + b
 
         assert duet.awaitable_func(async_func) is async_func
@@ -72,13 +70,13 @@ class TestAwaitableFunc:
 class TestRun:
     def test_future(self):
         def func(value):
-            return futuretools.completed_future(value * 2)
+            return duet.completed_future(value * 2)
 
         assert duet.run(func, 1) == 2
 
     def test_function(self):
         async def func(value):
-            value = await futuretools.completed_future(value * 2)
+            value = await duet.completed_future(value * 2)
             return value * 3
 
         assert duet.run(func, 1) == 2 * 3
@@ -87,8 +85,8 @@ class TestRun:
         side_effects = []
 
         async def func(value):
-            value = await futuretools.completed_future(value * 2)
-            value = await futuretools.completed_future(value * 3)
+            value = await duet.completed_future(value * 2)
+            value = await duet.completed_future(value * 3)
             side_effects.append(value)
 
         assert duet.run(func, 1) is None
@@ -100,7 +98,7 @@ class TestRun:
             return value * 3
 
         async def sub_func(value):
-            value = await futuretools.completed_future(value * 5)
+            value = await duet.completed_future(value * 5)
             return value * 7
 
         assert duet.run(func, 1) == 2 * 3 * 5 * 7
@@ -113,8 +111,8 @@ class TestRun:
             return value * 3, value2
 
         async def sub_func(value):
-            value = await futuretools.completed_future(value * 5)
-            value = await futuretools.completed_future(value * 7)
+            value = await duet.completed_future(value * 5)
+            value = await duet.completed_future(value * 7)
             side_effects.append(value)
 
         assert duet.run(func, 1) == (3, None)
@@ -123,7 +121,7 @@ class TestRun:
     def test_failed_future(self):
         async def func(value):
             try:
-                await futuretools.failed_future(Exception())
+                await duet.failed_future(Exception())
                 return value * 2
             except Exception:
                 return value * 3
@@ -141,7 +139,7 @@ class TestRun:
                 return value * 5
 
         async def sub_func(value):
-            await futuretools.failed_future(Exception())
+            await duet.failed_future(Exception())
             side_effects.append(value * 7)
 
         assert duet.run(func, 1) == 5
@@ -161,7 +159,7 @@ class TestPmap:
         async def func(value):
             iterations = 10 - value
             for i in range(iterations):
-                await futuretools.completed_future(i)
+                await duet.completed_future(i)
             finished.append(value)
             return value * 2
 
@@ -189,7 +187,7 @@ class TestPstarmap:
             value = 5 * a + b
             iterations = 10 - value
             for i in range(iterations):
-                await futuretools.completed_future(i)
+                await duet.completed_future(i)
             finished.append(value)
             return value * 2
 
@@ -200,7 +198,7 @@ class TestPstarmap:
 
 
 class TestPmapAsync:
-    @duet_live
+    @duet.sync
     async def test_ordering(self):
         """pmap_async results in order, even if funcs finish out of order."""
         finished = []
@@ -208,7 +206,7 @@ class TestPmapAsync:
         async def func(value):
             iterations = 10 - value
             for i in range(iterations):
-                await futuretools.completed_future(i)
+                await duet.completed_future(i)
             finished.append(value)
             return value * 2
 
@@ -216,14 +214,14 @@ class TestPmapAsync:
         assert results == [i * 2 for i in range(10)]
         assert finished == list(reversed(range(10)))
 
-    @duet_live
+    @duet.sync
     async def test_laziness(self):
         live = set()
 
         async def func(i):
             num_live = len(live)
             live.add(i)
-            await futuretools.completed_future(i)
+            await duet.completed_future(i)
             live.remove(i)
             return num_live
 
@@ -232,7 +230,7 @@ class TestPmapAsync:
 
 
 class TestPstarmapAsync:
-    @duet_live
+    @duet.sync
     async def test_ordering(self):
         """pstarmap_async results in order, even if funcs finish out of order."""
         finished = []
@@ -241,7 +239,7 @@ class TestPstarmapAsync:
             value = 5 * a + b
             iterations = 10 - value
             for i in range(iterations):
-                await futuretools.completed_future(i)
+                await duet.completed_future(i)
             finished.append(value)
             return value * 2
 
@@ -252,7 +250,7 @@ class TestPstarmapAsync:
 
 
 class TestLimiter:
-    @duet_live
+    @duet.sync
     async def test_ordering(self):
         """Check that waiting coroutines acquire limiter in order."""
         limiter = duet.Limiter(1)
@@ -261,7 +259,7 @@ class TestLimiter:
         async def func(i):
             async with limiter:
                 acquired.append(i)
-                await futuretools.completed_future(None)
+                await duet.completed_future(None)
 
         async with duet.new_scope() as scope:
             for i in range(10):
@@ -271,7 +269,7 @@ class TestLimiter:
 
 
 class TestScope:
-    @duet_live
+    @duet.sync
     async def test_run_all(self):
         results = {}
 
@@ -285,7 +283,7 @@ class TestScope:
         assert results == {(a, b): a * b for a in range(10) for b in range(10)}
 
     @pytest.mark.parametrize("fail_func", fail_funcs)
-    @duet_live
+    @duet.sync
     async def test_failure_in_spawned_task(self, fail_func):
         after_fail = False
         with pytest.raises(Fail):
@@ -296,7 +294,7 @@ class TestScope:
                 after_fail = True  # This should still run.
         assert after_fail
 
-    @duet_live
+    @duet.sync
     async def test_sync_failure_in_main_task(self):
         # pylint: disable=unreachable
         after_await = False
@@ -308,23 +306,23 @@ class TestScope:
         assert not after_await
         # pyline: enable=unreachable
 
-    @duet_live
+    @duet.sync
     async def test_async_failure_in_main_task(self):
         after_await = False
         with pytest.raises(Fail):
             async with duet.new_scope() as scope:
                 scope.spawn(mul, 2, 3)
-                await futuretools.failed_future(Fail())
+                await duet.failed_future(Fail())
                 after_await = True  # This should not run.
         assert not after_await
 
     def test_interrupt_not_included_in_stack_trace(self):
         async def func():
             async with duet.new_scope() as scope:
-                f = futuretools.AwaitableFuture()
+                f = duet.AwaitableFuture()
                 scope.spawn(lambda: f)
                 f.set_exception(ValueError("oops!"))
-                await futuretools.AwaitableFuture()
+                await duet.AwaitableFuture()
 
         with pytest.raises(ValueError, match="oops!") as exc_info:
             duet.run(func)
@@ -337,24 +335,21 @@ class TestScope:
         assert exc_info.value.__suppress_context__
 
 
-@duet_live
 @pytest.mark.skipif(
     sys.version_info >= (3, 8), reason="inapplicable for python 3.8+ (can be removed)"
 )
+@duet.sync
 async def test_multiple_calls_to_future_set_result():
-    """This checks a scenario that caused deadlocks in earlier versions.
-
-    See https://github.com/qh-lab/pyle/issues/11756.
-    """
+    """This checks a scenario that caused deadlocks in earlier versions."""
 
     async def set_results(*fs):
         for f in fs:
-            await futuretools.completed_future(None)
+            await duet.completed_future(None)
             f.set_result(None)
 
     async with duet.new_scope() as scope:
-        f0 = futuretools.AwaitableFuture()
-        f1 = futuretools.AwaitableFuture()
+        f0 = duet.AwaitableFuture()
+        f1 = duet.AwaitableFuture()
 
         scope.spawn(set_results, f0)
         await f0
