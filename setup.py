@@ -21,7 +21,7 @@ from setuptools import setup
 __version__ = ""
 exec(pathlib.Path("duet/_version.py").read_text())
 
-name = "duet"
+name = "duet-async"
 
 description = "A simple future-based async library for python."
 
@@ -38,7 +38,7 @@ if "DUET_PRE_RELEASE_VERSION" in os.environ:
     long_description = "\n\n".join(
         [
             "This is a development version of Duet and may be unstable.",
-            "For the latest stable release see https://pypi.org/project/duet.",
+            "For the latest stable release see https://pypi.org/project/duet-async/.",
             long_description,
         ]
     )
@@ -52,7 +52,7 @@ dev_requirements = [line.strip() for line in open("dev/requirements.txt").readli
 setup(
     name=name,
     version=__version__,
-    url="http://github.com/quantumlib/duet",
+    url="http://github.com/google/duet",
     author="The Duet Authors",
     author_email="maffoo@google.com",
     python_requires=">=3.7.0",
