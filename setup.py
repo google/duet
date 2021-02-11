@@ -62,6 +62,7 @@ setup(
     license="Apache 2",
     description=description,
     long_description=long_description,
+    long_description_content_type='text/markdown',
     packages=["duet"],
     package_data={
         "duet": ["py.typed"],
