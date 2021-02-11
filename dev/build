@@ -4,8 +4,28 @@ if [ -d "dist" ]; then
   rm -rf dist/
 fi
 
+for arg in "$@"; do
+  case $arg in
+    --pre)
+      SRC_VERSION_LINE=$(cat "duet/_version.py" | tail -n 1)
+      SRC_VERSION=$(echo $SRC_VERSION_LINE | cut -d'"' -f 2)
+      if [[ ${SRC_VERSION} != *"dev" ]]; then
+        echo "Version doesn't end in dev: ${SRC_VERSION_LINE}" >&2
+        exit 1
+      fi
+      export DUET_PRE_RELEASE_VERSION="${SRC_VERSION}$(date "+%Y%m%d%H%M%S")"
+      echo "pre-release version: ${DUET_PRE_RELEASE_VERSION}"
+      ;;
+
+    --upload)
+      export UPLOAD="yes"
+      ;;
+  esac
+done
+
 python setup.py sdist bdist_wheel
 
-if [ "$1" == "--upload" ]; then
+if [ -n "${UPLOAD}" ]; then
+  echo "uploading..."
   twine upload dist/*
 fi
