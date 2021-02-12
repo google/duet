@@ -220,6 +220,7 @@ class ReadySet:
         self._buffer = futuretools.BufferGroup()
         self._tasks: List[Task] = []
         self._task_set: Set[Task] = set()
+        self.future = futuretools.AwaitableFuture()
 
     def register(self, task: Task) -> None:
         """Registers task to be added to this set when it is ready."""
@@ -233,6 +234,10 @@ class ReadySet:
                 self._task_set.add(task)
                 self._tasks.append(task)
                 self._cond.notify()
+                self.future.try_set_result(None)
+
+    def flush(self) -> None:
+        self._buffer.flush()
 
     def get_all(self, timeout: Optional[float] = None) -> List[Task]:
         """Gets all ready tasks and clears the ready set.
@@ -247,7 +252,7 @@ class ReadySet:
         # Flush buffered futures to ensure we make progress. Note that we must
         # release the condition lock before flushing to avoid a deadlock if
         # buffered futures complete and trigger a call to self._add.
-        self._buffer.flush()
+        self.flush()
         with self._cond:
             if not self._tasks:
                 if not self._cond.wait(timeout):
@@ -258,6 +263,7 @@ class ReadySet:
         tasks = self._tasks
         self._tasks = []
         self._task_set.clear()
+        self.future = futuretools.AwaitableFuture()
         return tasks
 
     def interrupt(self) -> None:
@@ -420,6 +426,13 @@ class Scheduler:
                 return True
             frame = frame.f_back
         return False
+
+    @property
+    def ready_future(self) -> Future:
+        return self._ready_tasks.future
+
+    def flush(self) -> None:
+        self._ready_tasks.flush()
 
     def __enter__(self):
         if (
