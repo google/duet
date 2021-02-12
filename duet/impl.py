@@ -58,9 +58,11 @@ class Task(Generic[T]):
         awaitable: Awaitable[T],
         scheduler: Scheduler,
         main_task: Optional[Task],
+        name: Optional[str] = None,
     ) -> None:
         self.scheduler = scheduler
         self.main_task = main_task
+        self.name = name or f"task-{id(self):016x}"
         self._state = TaskState.WAITING
         self._future: Optional[Future] = None
         self._ready_future = futuretools.AwaitableFuture()
@@ -72,6 +74,12 @@ class Task(Generic[T]):
         self._generator = awaitable.__await__()  # Returns coroutine generator.
         if isinstance(awaitable, Coroutine):
             awaitable.cr_frame.f_locals.setdefault(LOCALS_TASK_SCHEDULER, scheduler)
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return self.name
 
     def _check_state(self, expected_state: TaskState) -> None:
         if self._state != expected_state:
@@ -240,7 +248,12 @@ class Scheduler:
         self._prev_signal: Optional[Callable] = None
         self._interrupted = False
 
-    def spawn(self, awaitable: Awaitable[Any], main_task: Optional[Task] = None) -> Task:
+    def spawn(
+        self,
+        awaitable: Awaitable[Any],
+        main_task: Optional[Task] = None,
+        name: Optional[str] = None,
+    ) -> Task:
         """Spawns a new Task to run an awaitable in this Scheduler.
 
         Note that the task will not be advanced until the next scheduler tick.
@@ -255,7 +268,7 @@ class Scheduler:
         Returns:
             A Task to run the given awaitable.
         """
-        task = Task(awaitable, scheduler=self, main_task=main_task)
+        task = Task(awaitable, scheduler=self, main_task=main_task, name=name)
         self.active_tasks.add(task)
         self._ready_tasks.register(task)
         return task

@@ -74,7 +74,7 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
         The final result of the async function.
     """
     with impl.Scheduler() as scheduler:
-        task = scheduler.spawn(func(*args, **kwds))
+        task = scheduler.spawn(func(*args, **kwds), name=func.__name__)
     return task.result
 
 
@@ -325,7 +325,13 @@ class Scope:
 
     def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
         """Starts a background task that will run the given function."""
-        task = self._scheduler.spawn(self._run(func, *args, **kwds), main_task=self._main_task)
+        arg_str = ", ".join(
+            [*(repr(arg) for arg in args), *(f"{k}={v!r}" for k, v in kwds.items())]
+        )
+        name = f"{func.__name__}({arg_str})"
+        task = self._scheduler.spawn(
+            self._run(func, *args, **kwds), main_task=self._main_task, name=name
+        )
         self._tasks.add(task)
 
     async def _run(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
