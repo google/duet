@@ -34,6 +34,7 @@ wraps async code into a generator interface.
 
 from concurrent.futures import CancelledError
 
+from duet import aio
 from duet._version import __version__
 from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector, azip
 from duet.api import (
