@@ -63,7 +63,7 @@ class Task(Generic[T]):
         self.main_task = main_task
         self._state = TaskState.WAITING
         self._future: Optional[Future] = None
-        self._ready_future = futuretools.AwaitableFuture()
+        self._ready_future = futuretools.AwaitableFuture[None]()
         self._ready_future.set_result(None)  # Ready to advance.
         self.interruptible = True
         self._interrupt: Optional[Interrupt] = None
@@ -171,11 +171,11 @@ def current_scheduler() -> Scheduler:
     return current_task().scheduler
 
 
-def any_ready(tasks: Set[Task]) -> futuretools.AwaitableFuture:
+def any_ready(tasks: Set[Task]) -> futuretools.AwaitableFuture[None]:
     """Returns a Future that will fire when any of the given tasks is ready."""
     if not tasks or any(task.done for task in tasks):
         return futuretools.completed_future(None)
-    f = futuretools.AwaitableFuture()
+    f = futuretools.AwaitableFuture[None]()
     for task in tasks:
         task.add_ready_callback(lambda _: f.try_set_result(None))
     return f

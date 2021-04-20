@@ -74,7 +74,7 @@ class AsyncCollector(Generic[T]):
 
     def __init__(self):
         self._buffer: Deque[T] = collections.deque()
-        self._waiter: Optional[futuretools.AwaitableFuture] = None
+        self._waiter: Optional[futuretools.AwaitableFuture[None]] = None
         self._done: bool = False
         self._error: Optional[Exception] = None
 

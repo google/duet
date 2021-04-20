@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import Future
-from typing import Any, Callable, Optional, Tuple, Type, TypeVar
+from typing import Any, Callable, Generator, Generic, Optional, Tuple, Type, TypeVar
 
 from typing_extensions import Protocol
 
@@ -35,14 +35,14 @@ class FutureLike(Protocol[T]):
     def result(self) -> T:
         ...
 
-    def exception(self) -> Optional[Exception]:
+    def exception(self) -> Optional[BaseException]:
         ...
 
     def add_done_callback(self, fn: Callable[[FutureLike[T]], Any]) -> None:
         ...
 
 
-class AwaitableFuture(Future):
+class AwaitableFuture(Future, Generic[T]):
     """A Future that can be awaited."""
 
     # This is an internal variable in the Future class.
@@ -54,11 +54,11 @@ class AwaitableFuture(Future):
         return isinstance(value, FutureClasses)
 
     @staticmethod
-    def wrap(future: FutureLike) -> AwaitableFuture:
+    def wrap(future: FutureLike[T]) -> AwaitableFuture[T]:
         """Creates an awaitable future that wraps the given source future."""
-        awaitable = AwaitableFuture()
+        awaitable = AwaitableFuture[T]()
 
-        def callback(future):
+        def callback(future: FutureLike[T]):
             error = future.exception()
             if error is None:
                 awaitable.try_set_result(future.result())
@@ -68,11 +68,11 @@ class AwaitableFuture(Future):
         future.add_done_callback(callback)
         return awaitable
 
-    def __await__(self):
+    def __await__(self) -> Generator[AwaitableFuture[T], None, T]:
         yield self
         return self.result()
 
-    def try_set_result(self, result) -> bool:
+    def try_set_result(self, result: T) -> bool:
         """Sets the result on this future if not already done.
 
         Returns:
@@ -84,7 +84,7 @@ class AwaitableFuture(Future):
             self.set_result(result)
             return True
 
-    def try_set_exception(self, exception) -> bool:
+    def try_set_exception(self, exception: Optional[BaseException]) -> bool:
         """Sets an exception on this future if not already done.
 
         Returns:
@@ -185,15 +185,15 @@ class FutureList(BufferedFuture):
         self._buffer.flush()
 
 
-def completed_future(data):
+def completed_future(data: T) -> AwaitableFuture[T]:
     """Return a future with the given data as its result."""
-    f = AwaitableFuture()
+    f = AwaitableFuture[T]()
     f.set_result(data)
     return f
 
 
-def failed_future(error):
+def failed_future(error: BaseException) -> AwaitableFuture[Any]:
     """Return a future that will fail with the given error."""
-    f = AwaitableFuture()
+    f = AwaitableFuture[Any]()
     f.set_exception(error)
     return f
