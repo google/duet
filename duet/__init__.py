@@ -362,16 +362,16 @@ class Limiter:
     def __init__(self, capacity: Optional[int]) -> None:
         self.capacity = capacity
         self.count = 0
-        self.waiters: Deque[AwaitableFuture] = collections.deque()
-        self.available_waiters: List[AwaitableFuture] = []
+        self.waiters: Deque[AwaitableFuture[None]] = collections.deque()
+        self.available_waiters: List[AwaitableFuture[None]] = []
 
     def is_available(self) -> bool:
         """Returns True if the limiter is available, False otherwise."""
         return self.capacity is None or self.count < self.capacity
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         if not self.is_available():
-            f = AwaitableFuture()
+            f = AwaitableFuture[None]()
             self.waiters.append(f)
             await f
         self.count += 1
@@ -380,7 +380,7 @@ class Limiter:
         await self.__aenter__()
         return Slot(self._release)
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         self._release()
 
     def _release(self):
@@ -400,7 +400,7 @@ class Limiter:
         limiter is currently available, to ensure that throttled iterators do
         not race ahead of downstream work.
         """
-        f = AwaitableFuture()
+        f = AwaitableFuture[None]()
         if self.is_available():
             f.set_result(None)
         else:
