@@ -360,21 +360,21 @@ class Limiter:
     """
 
     def __init__(self, capacity: Optional[int]) -> None:
-        self.capacity = capacity
-        self.count = 0
-        self.waiters: Deque[AwaitableFuture[None]] = collections.deque()
-        self.available_waiters: List[AwaitableFuture[None]] = []
+        self._capacity = capacity
+        self._count = 0
+        self._waiters: Deque[AwaitableFuture[None]] = collections.deque()
+        self._available_waiters: List[AwaitableFuture[None]] = []
 
     def is_available(self) -> bool:
         """Returns True if the limiter is available, False otherwise."""
-        return self.capacity is None or self.count < self.capacity
+        return self._capacity is None or self._count < self._capacity
 
     async def __aenter__(self) -> None:
         if not self.is_available():
             f = AwaitableFuture[None]()
-            self.waiters.append(f)
+            self._waiters.append(f)
             await f
-        self.count += 1
+        self._count += 1
 
     async def acquire(self) -> Slot:
         await self.__aenter__()
@@ -384,14 +384,14 @@ class Limiter:
         self._release()
 
     def _release(self):
-        self.count -= 1
-        if self.waiters:
-            f = self.waiters.popleft()
+        self._count -= 1
+        if self._waiters:
+            f = self._waiters.popleft()
             f.try_set_result(None)
-        if self.available_waiters:
-            for f in self.available_waiters:
+        if self._available_waiters:
+            for f in self._available_waiters:
                 f.try_set_result(None)
-            self.available_waiters = []
+            self._available_waiters = []
 
     async def available(self) -> None:
         """Wait until this limiter is available (i.e. not full to capacity).
@@ -404,13 +404,21 @@ class Limiter:
         if self.is_available():
             f.set_result(None)
         else:
-            self.available_waiters.append(f)
+            self._available_waiters.append(f)
         await f
 
     async def throttle(self, iterable: AnyIterable[T]) -> AsyncIterator[T]:
         async for value in aiter(iterable):
             await self.available()
             yield value
+
+    @property
+    def capacity(self) -> Optional[int]:
+        return self._capacity
+
+    @capacity.setter
+    def capacity(self, capacity: int) -> None:
+        self._capacity = capacity
 
 
 class Slot:
