@@ -280,7 +280,11 @@ class TestLimiter:
             dones: List[duet.AwaitableFuture[None]] = []
 
             def spawn(i: int) -> None:
-                """Will await f and complete unlock after acquiring the limiter."""
+                """Spawn a new "controllable" async task.
+
+                We can await limiter slot acquisition, and await when the task
+                completes.
+                """
                 acq = duet.AwaitableFuture[None]()
                 done = duet.AwaitableFuture[None]()
                 unlock = duet.AwaitableFuture[None]()
@@ -309,7 +313,7 @@ class TestLimiter:
             limiter.capacity = 2
             assert not limiter.is_available()
 
-            # # unlock one, and ensure the limiter is still unavailable.
+            # unlock one, and ensure the limiter is still unavailable.
             unlocks.pop(0).set_result(None)
             assert not limiter.is_available()
             await dones.pop(0)
@@ -328,7 +332,7 @@ class TestLimiter:
             for f in unlocks:
                 f.set_result(None)
 
-        # Ensure that all spawned tasks completed.
+        # Ensure that all spawned tasks completed in the right order.
         assert completed == list(range(4))
 
 
