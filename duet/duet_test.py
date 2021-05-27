@@ -15,6 +15,7 @@
 import inspect
 import sys
 import traceback
+from typing import List
 
 import pytest
 
@@ -266,6 +267,73 @@ class TestLimiter:
                 scope.spawn(func, i)
 
         assert acquired == sorted(acquired)
+
+    @duet.sync
+    async def test_resize_capacity(self) -> None:
+        """Check that resizing correctly lets running tasks complete."""
+        limiter = duet.Limiter(3)
+
+        async with duet.new_scope() as scope:
+            acqs: List[duet.AwaitableFuture[None]] = []
+            completed: List[int] = []
+            unlocks: List[duet.AwaitableFuture[None]] = []
+            dones: List[duet.AwaitableFuture[None]] = []
+
+            def spawn(i: int) -> None:
+                """Spawn a new "controllable" async task.
+
+                We can await limiter slot acquisition, and await when the task
+                completes.
+                """
+                acq = duet.AwaitableFuture[None]()
+                done = duet.AwaitableFuture[None]()
+                unlock = duet.AwaitableFuture[None]()
+
+                acqs.append(acq)
+                dones.append(done)
+                unlocks.append(unlock)
+
+                async def func():
+                    async with limiter:
+                        acq.set_result(None)
+                        await unlock
+                    done.set_result(None)
+                    completed.append(i)
+
+                scope.spawn(func)
+
+            # Spawn three tasks.
+            for i in range(3):
+                spawn(i)
+
+            # Wait for the last task to acquire the limiter.
+            await acqs[-1]
+
+            # Resize the limiter down to 2.
+            limiter.capacity = 2
+            assert not limiter.is_available()
+
+            # unlock one, and ensure the limiter is still unavailable.
+            unlocks.pop(0).set_result(None)
+            assert not limiter.is_available()
+            await dones.pop(0)
+
+            # unlock one more, which should free a slot.
+            unlocks.pop(0).set_result(None)
+            await dones.pop(0)
+            assert limiter.is_available()
+
+            # acquire again, this time hitting the limit of 2 again.
+            spawn(3)
+            await acqs[-1]
+            assert not limiter.is_available()
+
+            # complete all tasks.
+            for f in unlocks:
+                f.set_result(None)
+
+        # Ensure that all spawned tasks completed in the right order.
+        assert completed == list(range(4))
 
 
 class TestScope:
