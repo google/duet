@@ -64,7 +64,7 @@ try:
 except AttributeError:
     # In python 3.6 asynccontextmanager isn't available from the standard library, so we are using
     # equivalent third-party implementation.
-    from aiocontext import async_contextmanager
+    from aiocontext import async_contextmanager # type: ignore
 
     asynccontextmanager = async_contextmanager
 
