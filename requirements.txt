@@ -1,0 +1,2 @@
+asyncio-contextmanager == 1.0.1; python_version <= '3.6'
+contextvars == 2.4; python_version <= '3.6'

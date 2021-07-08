@@ -46,7 +46,8 @@ if "DUET_PRE_RELEASE_VERSION" in os.environ:
 # Sanity check
 assert __version__, "Version string cannot be empty"
 
-# Read dev requirements
+# Read requirements
+requirements = [line.strip() for line in open("requirements.txt").readlines()]
 dev_requirements = [line.strip() for line in open("dev/requirements.txt").readlines()]
 
 setup(
@@ -55,7 +56,8 @@ setup(
     url="http://github.com/google/duet",
     author="The Duet Authors",
     author_email="maffoo@google.com",
-    python_requires=">=3.7.0",
+    python_requires=">=3.6.0",
+    install_requires=requirements,
     extras_require={
         "dev_env": dev_requirements,
     },
