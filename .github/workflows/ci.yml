@@ -59,7 +59,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r dev/requirements.txt
       - name: Pytest check
         run: pytest duet
   test-windows:
@@ -75,7 +77,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r dev/requirements.txt
       - name: Pytest Windows
         run: pytest duet
   test-macos:
@@ -91,6 +95,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r dev/requirements.txt
       - name: Pytest check
         run: pytest duet
