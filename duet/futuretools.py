@@ -36,7 +36,7 @@ class FutureLike(Protocol[T]):
     def exception(self) -> Optional[BaseException]:
         ...
 
-    def add_done_callback(self, fn: Callable[['FutureLike[T]'], Any]) -> None:
+    def add_done_callback(self, fn: Callable[["FutureLike[T]"], Any]) -> None:
         ...
 
 
@@ -52,7 +52,7 @@ class AwaitableFuture(Future, Generic[T]):
         return isinstance(value, FutureClasses)
 
     @staticmethod
-    def wrap(future: FutureLike[T]) -> 'AwaitableFuture[T]':
+    def wrap(future: FutureLike[T]) -> "AwaitableFuture[T]":
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture[T]()
 
@@ -66,7 +66,7 @@ class AwaitableFuture(Future, Generic[T]):
         future.add_done_callback(callback)
         return awaitable
 
-    def __await__(self) -> Generator['AwaitableFuture[T]', None, T]:
+    def __await__(self) -> Generator["AwaitableFuture[T]", None, T]:
         yield self
         return self.result()
 
