@@ -28,7 +28,7 @@ However, duet differs from trio in two major ways:
 Install from pypi:
 
 ```
-pip install duet-async
+pip install duet
 ```
 
 ## Note
