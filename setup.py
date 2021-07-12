@@ -21,7 +21,7 @@ from setuptools import setup
 __version__ = ""
 exec(pathlib.Path("duet/_version.py").read_text())
 
-name = "duet-async"
+name = "duet"
 
 description = "A simple future-based async library for python."
 
