@@ -112,6 +112,7 @@ venv.bak/
 
 # IDEs
 *.iml
+.idea
 
 # Spyder project settings
 .spyderproject
