@@ -38,7 +38,7 @@ if "DUET_PRE_RELEASE_VERSION" in os.environ:
     long_description = "\n\n".join(
         [
             "This is a development version of Duet and may be unstable.",
-            "For the latest stable release see https://pypi.org/project/duet-async/.",
+            "For the latest stable release see https://pypi.org/project/duet/.",
             long_description,
         ]
     )
