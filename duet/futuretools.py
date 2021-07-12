@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import threading
 from concurrent.futures import Future
 from typing import Any, Callable, Generator, Generic, Optional, Tuple, Type, TypeVar
@@ -38,7 +36,7 @@ class FutureLike(Protocol[T]):
     def exception(self) -> Optional[BaseException]:
         ...
 
-    def add_done_callback(self, fn: Callable[[FutureLike[T]], Any]) -> None:
+    def add_done_callback(self, fn: Callable[["FutureLike[T]"], Any]) -> None:
         ...
 
 
@@ -54,7 +52,7 @@ class AwaitableFuture(Future, Generic[T]):
         return isinstance(value, FutureClasses)
 
     @staticmethod
-    def wrap(future: FutureLike[T]) -> AwaitableFuture[T]:
+    def wrap(future: FutureLike[T]) -> "AwaitableFuture[T]":
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture[T]()
 
@@ -68,7 +66,7 @@ class AwaitableFuture(Future, Generic[T]):
         future.add_done_callback(callback)
         return awaitable
 
-    def __await__(self) -> Generator[AwaitableFuture[T], None, T]:
+    def __await__(self) -> Generator["AwaitableFuture[T]", None, T]:
         yield self
         return self.result()
 

@@ -50,7 +50,7 @@ jobs:
     name: Pytest Linux
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.6', '3.7', '3.8', '3.9']
     runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v2
@@ -59,14 +59,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: pip install -r requirements.txt -r dev/requirements.txt
       - name: Pytest check
         run: pytest duet
   test-windows:
     name: Pytest Windows
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.6', '3.7', '3.8', '3.9']
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
@@ -75,14 +75,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: pip install -r requirements.txt -r dev/requirements.txt
       - name: Pytest Windows
         run: pytest duet
   test-macos:
     name: Pytest MacOS
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.6', '3.7', '3.8', '3.9']
     runs-on: macos-10.15
     steps:
       - uses: actions/checkout@v2
@@ -91,6 +91,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
       - name: Install requirements
-        run: pip install -r dev/requirements.txt
+        run: pip install -r requirements.txt -r dev/requirements.txt
       - name: Pytest check
         run: pytest duet

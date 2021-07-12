@@ -32,8 +32,6 @@ which makes it possible to implement things like the pmap function below which
 wraps async code into a generator interface.
 """
 
-from __future__ import annotations
-
 import abc
 import collections
 import contextlib
@@ -60,6 +58,15 @@ from duet.futuretools import AwaitableFuture, BufferedFuture, completed_future, 
 
 T = TypeVar("T")
 U = TypeVar("U")
+
+try:
+    asynccontextmanager = contextlib.asynccontextmanager
+except AttributeError:
+    # In python 3.6 asynccontextmanager isn't available from the standard library, so we are using
+    # equivalent third-party implementation.
+    from aiocontext import async_contextmanager
+
+    asynccontextmanager = async_contextmanager
 
 
 def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
@@ -194,7 +201,7 @@ pstarmap = sync(pstarmap_async)
 
 
 async def pmap_aiter(
-    scope: Scope,
+    scope: "Scope",
     func: Callable[[T], Awaitable[U]],
     iterable: AnyIterable[T],
     limit: Optional[int] = None,
@@ -247,7 +254,7 @@ async def pmap_aiter(
 
 
 def pstarmap_aiter(
-    scope: Scope,
+    scope: "Scope",
     func: Callable[..., Awaitable[U]],
     iterable: AnyIterable[Any],
     limit: Optional[int] = None,
@@ -267,8 +274,8 @@ def pstarmap_aiter(
     return pmap_aiter(scope, lambda args: func(*args), iterable, limit)
 
 
-@contextlib.asynccontextmanager
-async def new_scope() -> AsyncIterator[Scope]:
+@asynccontextmanager
+async def new_scope() -> AsyncIterator["Scope"]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
@@ -376,7 +383,7 @@ class Limiter:
             await f
         self._count += 1
 
-    async def acquire(self) -> Slot:
+    async def acquire(self) -> "Slot":
         await self.__aenter__()
         return Slot(self._release)
 
