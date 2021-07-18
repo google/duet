@@ -55,6 +55,7 @@ import duet.impl as impl
 from duet._version import __version__
 from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector, azip
 from duet.futuretools import AwaitableFuture, BufferedFuture, completed_future, failed_future
+from duet.impl import Log
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -161,6 +162,7 @@ async def pmap_async(
     func: Callable[[T], Awaitable[U]],
     iterable: AnyIterable[T],
     limit: Optional[int] = None,
+    scope: "Scope" = None
 ) -> List[U]:
     """Apply an async function to every item in iterable.
 
@@ -168,11 +170,15 @@ async def pmap_async(
         func: Async function called for each element in iterable.
         iterable: Iterated over to produce values that are fed to func.
         limit: The maximum number of function calls to make concurrently.
+        scope: Scope in which function should be applied.
 
     Returns:
         List of results of all function calls.
     """
-    async with new_scope() as scope:
+    if scope is None:
+        async with new_scope() as scope:
+            return await pmap_async(func, iterable, limit, scope=scope)
+    else:
         return [x async for x in pmap_aiter(scope, func, iterable, limit)]
 
 
@@ -275,7 +281,7 @@ def pstarmap_aiter(
 
 
 @asynccontextmanager
-async def new_scope() -> AsyncIterator["Scope"]:
+async def new_scope(timeout : Optional[float] = None) -> AsyncIterator["Scope"]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
@@ -290,9 +296,15 @@ async def new_scope() -> AsyncIterator["Scope"]:
     will raise an error.
     """
 
+    Log("new_scope()", "new_scope() called")
+
     main_task = impl.current_task()
     scheduler = main_task.scheduler
     tasks: Set[impl.Task] = set()
+
+    # This is very hacky, we shouldn't do this.
+    if timeout is not None:
+        scheduler.set_timeout(timeout)
 
     async def finish_tasks():
         while True:
@@ -326,6 +338,7 @@ class Scope:
     def __init__(
         self, main_task: impl.Task, scheduler: impl.Scheduler, tasks: Set[impl.Task]
     ) -> None:
+        Log("Scope", "constructor called")
         self._main_task = main_task
         self._scheduler = scheduler
         self._tasks = tasks

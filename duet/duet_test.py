@@ -14,7 +14,9 @@
 
 import inspect
 import sys
+import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import pytest
@@ -430,3 +432,49 @@ async def test_multiple_calls_to_future_set_result():
 
         scope.spawn(set_results, f0, f1)
         await f1
+
+
+class TickingTimer:
+    def __init__(self, name, interval, ticks):
+        self.name = name
+        self.interval = interval
+        self.ticks = ticks
+        self.ticks_done = 0
+
+    async def run(self):
+        self.ticks_done = 0
+        pool = ThreadPoolExecutor(max_workers=1)
+        for i in range(self.ticks):
+            future = pool.submit(time.sleep, self.interval)
+            await duet.AwaitableFuture.wrap(future)
+            self.ticks_done += 1
+            print("%s: tick %d" % (self.name, i))
+
+
+def test_timeouts():
+    timers = [
+        TickingTimer("timer0", 0.05, 10),
+        TickingTimer("timer1", 0.1, 10),
+        TickingTimer("timer2", 0.2, 5),
+        TickingTimer("timer3", 0.25, 4),
+    ]
+
+    @duet.sync
+    async def run_timers(timers):
+        async with duet.new_scope(timeout=0.6) as scope:
+            async def run():
+                await duet.pmap_async(TickingTimer.run, timers, scope=scope)
+
+            scope.spawn(run)
+
+    timeout_error_thrown = False
+    try:
+        run_timers(timers)
+    except TimeoutError:
+        timeout_error_thrown = True
+
+    assert timeout_error_thrown
+    assert timers[0].ticks_done == 10
+    assert timers[1].ticks_done == 5
+    assert timers[2].ticks_done == 2
+    assert timers[3].ticks_done == 2
