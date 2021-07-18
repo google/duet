@@ -461,7 +461,8 @@ def test_timeouts():
 
     @duet.sync
     async def run_timers(timers):
-        async with duet.new_scope(timeout=0.6) as scope:
+        async with duet.new_scope(timeout=0.62) as scope:
+
             async def run():
                 await duet.pmap_async(TickingTimer.run, timers, scope=scope)
 
@@ -475,6 +476,6 @@ def test_timeouts():
 
     assert timeout_error_thrown
     assert timers[0].ticks_done == 10
-    assert timers[1].ticks_done == 5
-    assert timers[2].ticks_done == 2
+    assert timers[1].ticks_done == 6
+    assert timers[2].ticks_done == 3
     assert timers[3].ticks_done == 2

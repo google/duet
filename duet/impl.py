@@ -13,10 +13,10 @@
 # limitations under the License.
 
 """Internal implementation details for duet."""
-import time
 import enum
 import signal
 import threading
+import time
 from concurrent.futures import Future
 from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, cast, Coroutine, Generic, List, Optional, Set, TypeVar
@@ -52,10 +52,10 @@ LOCALS_TASK_SCHEDULER = "__duet_task_scheduler__"
 
 class Task(Generic[T]):
     def __init__(
-            self,
-            awaitable: Awaitable[T],
-            scheduler: "Scheduler",
-            main_task: Optional["Task"],
+        self,
+        awaitable: Awaitable[T],
+        scheduler: "Scheduler",
+        main_task: Optional["Task"],
     ) -> None:
         self.scheduler = scheduler
         self.main_task = main_task
@@ -236,7 +236,7 @@ class ReadySet:
 
 class Scheduler:
     def __init__(self, deadline: Optional[float] = None) -> None:
-        Log('Scheduler', "constructor")
+        Log("Scheduler", "constructor")
         self.active_tasks: Set[Task] = set()
         self._ready_tasks = ReadySet()
         self._prev_signal: Optional[Callable] = None
@@ -272,8 +272,8 @@ class Scheduler:
         are still active (or yet to be spawned). Raises a RuntimeError if there
         are no currently active tasks.
         """
-        Log('Scheduler', 'tick ENTER')
-        Log("Scheduler", 'timeout=' + str(self._get_timeout()))
+        Log("Scheduler", "tick ENTER")
+        Log("Scheduler", "timeout=" + str(self._get_timeout()))
         if not self.active_tasks:
             raise RuntimeError("tick called with no active tasks")
 
@@ -297,7 +297,7 @@ class Scheduler:
                     self.active_tasks.discard(task)
                 else:
                     self._ready_tasks.register(task)
-        Log('Scheduler', 'tick END')
+        Log("Scheduler", "tick END")
 
     def _interrupt(self, signum: int, frame: Optional[Any]) -> None:
         """Interrupt signal handler used while this scheduler is running.
@@ -339,7 +339,7 @@ class Scheduler:
 
     def _get_timeout(self):
         if self.deadline is None:
-            return  None
+            return None
         return self.deadline - self._now_seconds()
 
     def _now_seconds(self):
@@ -348,30 +348,30 @@ class Scheduler:
     def __enter__(self):
         Log("Scheduler", "__enter__")
         if (
-                threading.current_thread() == threading.main_thread()
-                and signal.getsignal(signal.SIGINT) == signal.default_int_handler
+            threading.current_thread() == threading.main_thread()
+            and signal.getsignal(signal.SIGINT) == signal.default_int_handler
         ):
             self._prev_signal = signal.signal(signal.SIGINT, self._interrupt)
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        Log('Scheduler', '__exit__')
+        Log("Scheduler", "__exit__")
 
         def finish_tasks(error=None):
-            Log("Scheduler", 'finish_tasks ENTER')
+            Log("Scheduler", "finish_tasks ENTER")
             if error:
-                Log("Scheduler", 'Interrupting all tasks')
+                Log("Scheduler", "Interrupting all tasks")
                 for task in self.active_tasks:
                     task.interrupt(None, error)
                 # TODO: This `return` is most likely wrong, but if I don't do this, Scheduler
                 # is stack in infinite loop after timing out.
                 return
-            Log("Scheduler", 'Before main loop, self.active_tasks=' + str(len(self.active_tasks)))
+            Log("Scheduler", "Before main loop, self.active_tasks=" + str(len(self.active_tasks)))
             while self.active_tasks:
                 try:
                     self.tick()
                 except Exception:
-                    Log("Scheduler", 'finish_tasks except clause')
+                    Log("Scheduler", "finish_tasks except clause")
                     if not error:
                         raise
 
@@ -382,14 +382,15 @@ class Scheduler:
                 try:
                     finish_tasks()
                 except Exception as exc:
-                    Log("Scheduler", '__exit__ except clause')
+                    Log("Scheduler", "__exit__ except clause")
                     finish_tasks(exc)
                     raise
         finally:
             if self._prev_signal:
                 signal.signal(signal.SIGINT, self._prev_signal)
 
+
 # TODO: remove
 def Log(tag, text):
-    #print("[%.02f %s] %s" % (time.time(), tag, text))
+    # print("[%.02f %s] %s" % (time.time(), tag, text))
     pass

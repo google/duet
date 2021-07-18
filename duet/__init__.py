@@ -162,7 +162,7 @@ async def pmap_async(
     func: Callable[[T], Awaitable[U]],
     iterable: AnyIterable[T],
     limit: Optional[int] = None,
-    scope: "Scope" = None
+    scope: "Scope" = None,
 ) -> List[U]:
     """Apply an async function to every item in iterable.
 
@@ -281,7 +281,7 @@ def pstarmap_aiter(
 
 
 @asynccontextmanager
-async def new_scope(timeout : Optional[float] = None) -> AsyncIterator["Scope"]:
+async def new_scope(timeout: Optional[float] = None) -> AsyncIterator["Scope"]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
