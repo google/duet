@@ -15,11 +15,27 @@
 """Internal implementation details for duet."""
 
 import enum
+import functools
+import heapq
+import itertools
 import signal
 import threading
+import time
 from concurrent.futures import Future
 from contextvars import ContextVar
-from typing import Any, Awaitable, Callable, cast, Coroutine, Generic, List, Optional, Set, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    cast,
+    Coroutine,
+    Generic,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    TypeVar,
+)
 
 import duet.futuretools as futuretools
 
@@ -67,6 +83,9 @@ class Task(Generic[T]):
         self._interrupt: Optional[Interrupt] = None
         self._result: Optional[T] = None
         self._error: Optional[Exception] = None
+        self._deadlines: List[DeadlineEntry] = []
+        if main_task and main_task.deadline is not None:
+            self.push_deadline(main_task.deadline)
         self._generator = awaitable.__await__()  # Returns coroutine generator.
         if isinstance(awaitable, Coroutine):
             awaitable.cr_frame.f_locals.setdefault(LOCALS_TASK_SCHEDULER, scheduler)
@@ -132,6 +151,20 @@ class Task(Generic[T]):
             self._state = TaskState.WAITING
         finally:
             _current_task.reset(token)
+
+    def push_deadline(self, deadline: float) -> None:
+        if self._deadlines:
+            deadline = min(self._deadlines[-1].deadline, deadline)
+        entry = self.scheduler.add_deadline(self, deadline)
+        self._deadlines.append(entry)
+
+    def pop_deadline(self) -> None:
+        entry = self._deadlines.pop(-1)
+        entry.valid = False
+
+    @property
+    def deadline(self) -> Optional[float]:
+        return self._deadlines[-1].deadline if self._deadlines else None
 
     def interrupt(self, task, error):
         if self.done or not self.interruptible or self._interrupt:
@@ -201,7 +234,7 @@ class ReadySet:
                 self._tasks.append(task)
                 self._cond.notify()
 
-    def get_all(self) -> List[Task]:
+    def get_all(self, timeout: Optional[float] = None) -> List[Task]:
         """Gets all ready tasks and clears the ready set.
 
         If no tasks are ready yet, we flush buffered futures to notify them
@@ -217,7 +250,8 @@ class ReadySet:
         self._buffer.flush()
         with self._cond:
             if not self._tasks:
-                self._cond.wait()
+                if not self._cond.wait(timeout):
+                    raise TimeoutError()
             return self._pop_tasks()
 
     def _pop_tasks(self) -> List[Task]:
@@ -231,12 +265,39 @@ class ReadySet:
             self._cond.notify()
 
 
+@functools.total_ordering
+class DeadlineEntry:
+
+    _counter = itertools.count()
+
+    def __init__(self, task: Task, deadline: float):
+        self.task = task
+        self.deadline = deadline
+        self.count = next(self._counter)
+        self._cmp_val = (deadline, self.count)
+        self.valid = True
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DeadlineEntry):
+            return NotImplemented
+        return self._cmp_val == other._cmp_val
+
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, DeadlineEntry):
+            return NotImplemented
+        return self._cmp_val < other._cmp_val
+
+    def __repr__(self) -> str:
+        return f"DeadlineEntry({self.task}, {self.deadline}, {self.count})"
+
+
 class Scheduler:
     def __init__(self) -> None:
         self.active_tasks: Set[Task] = set()
         self._ready_tasks = ReadySet()
         self._prev_signal: Optional[Callable] = None
         self._interrupted = False
+        self._deadlines: List[DeadlineEntry] = []
 
     def spawn(self, awaitable: Awaitable[Any], main_task: Optional[Task] = None) -> Task:
         """Spawns a new Task to run an awaitable in this Scheduler.
@@ -258,6 +319,28 @@ class Scheduler:
         self._ready_tasks.register(task)
         return task
 
+    def time(self) -> float:
+        return time.time()
+
+    def add_deadline(self, task: Task, deadline: float) -> DeadlineEntry:
+        entry = DeadlineEntry(task, deadline=deadline)
+        heapq.heappush(self._deadlines, entry)
+        return entry
+
+    def get_next_deadline(self) -> Optional[float]:
+        while self._deadlines:
+            if not self._deadlines[0].valid:
+                heapq.heappop(self._deadlines)
+                continue
+            return self._deadlines[0].deadline
+        return None
+
+    def get_deadline_tasks(self, deadline: float) -> Iterator[Task]:
+        while self._deadlines and self._deadlines[0].deadline <= deadline:
+            entry = heapq.heappop(self._deadlines)
+            if entry.valid:
+                yield entry.task
+
     def tick(self):
         """Runs the scheduler ahead by one tick.
 
@@ -274,7 +357,14 @@ class Scheduler:
             task.interrupt(task, KeyboardInterrupt)
             self._interrupted = False
 
-        ready_tasks = self._ready_tasks.get_all()
+        deadline = self.get_next_deadline()
+        timeout = None if deadline is None else max(deadline - self.time(), 0)
+        try:
+            ready_tasks = self._ready_tasks.get_all(timeout)
+        except TimeoutError:
+            for task in self.get_deadline_tasks(deadline):
+                task.interrupt(task, TimeoutError())
+            ready_tasks = self._ready_tasks.get_all(None)
         for task in ready_tasks:
             try:
                 task.advance()
