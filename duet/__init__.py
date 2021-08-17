@@ -274,8 +274,41 @@ def pstarmap_aiter(
     return pmap_aiter(scope, lambda args: func(*args), iterable, limit)
 
 
+async def sleep(time: float) -> None:
+    """Sleeps for the given length of time in seconds."""
+    try:
+        async with timeout_scope(time):
+            await AwaitableFuture()
+    except TimeoutError:
+        pass
+
+
 @asynccontextmanager
-async def new_scope() -> AsyncIterator["Scope"]:
+async def deadline_scope(deadline: float) -> AsyncIterator[None]:
+    """Enter a scope that will exit when the deadline elapses.
+
+    Args:
+        deadline: Absolute time in epoch seconds when the scope should exit.
+    """
+    async with new_scope(deadline=deadline):
+        yield
+
+
+@asynccontextmanager
+async def timeout_scope(timeout: float) -> AsyncIterator[None]:
+    """Enter a scope that will exit when the timeout elapses.
+
+    Args:
+        timeout: Time in seconds from now when the scope should exit.
+    """
+    async with new_scope(timeout=timeout):
+        yield
+
+
+@asynccontextmanager
+async def new_scope(
+    *, deadline: Optional[float] = None, timeout: Optional[float] = None
+) -> AsyncIterator["Scope"]:
     """Creates a scope in which asynchronous tasks can be launched.
 
     This is inspired by the concept of "nurseries" in trio:
@@ -288,8 +321,13 @@ async def new_scope() -> AsyncIterator["Scope"]:
     If an error is raised by the code in the block itself or by any of the
     spawned tasks, all other background tasks will be interrupted and the block
     will raise an error.
-    """
 
+    Args:
+        deadline: Absolute time in epoch seconds when the scope should exit.
+        timeout: Time in seconds from now when the scope should exit. If both
+            deadline and timeout are given, the actual deadline will be
+            whichever one will elapse first.
+    """
     main_task = impl.current_task()
     scheduler = main_task.scheduler
     tasks: Set[impl.Task] = set()
@@ -301,6 +339,13 @@ async def new_scope() -> AsyncIterator["Scope"]:
             if not tasks:
                 break
 
+    if timeout is not None:
+        if deadline is None:
+            deadline = scheduler.time() + timeout
+        else:
+            deadline = min(deadline, scheduler.time() + timeout)
+    if deadline is not None:
+        main_task.push_deadline(deadline)
     try:
         yield Scope(main_task, scheduler, tasks)
         await finish_tasks()
@@ -318,6 +363,9 @@ async def new_scope() -> AsyncIterator["Scope"]:
             exc = exc.error
             exc.__suppress_context__ = True
         raise exc
+    finally:
+        if deadline is not None:
+            main_task.pop_deadline()
 
 
 class Scope:

@@ -14,6 +14,7 @@
 
 import inspect
 import sys
+import time
 import traceback
 from typing import List
 
@@ -336,6 +337,13 @@ class TestLimiter:
         assert completed == list(range(4))
 
 
+@duet.sync
+async def test_sleep():
+    start = time.time()
+    await duet.sleep(0.5)
+    assert abs((time.time() - start) - 0.5) < 0.2
+
+
 class TestScope:
     @duet.sync
     async def test_run_all(self):
@@ -401,6 +409,43 @@ class TestScope:
         assert "Interrupt" not in stack_trace
         assert isinstance(exc_info.value.__context__, impl.Interrupt)
         assert exc_info.value.__suppress_context__
+
+    @duet.sync
+    async def test_timeout(self):
+        start = time.time()
+        with pytest.raises(TimeoutError):
+            async with duet.timeout_scope(0.5):
+                await duet.AwaitableFuture()
+        assert abs((time.time() - start) - 0.5) < 0.2
+
+    @duet.sync
+    async def test_deadline(self):
+        start = time.time()
+        with pytest.raises(TimeoutError):
+            async with duet.deadline_scope(time.time() + 0.5):
+                await duet.AwaitableFuture()
+        assert abs((time.time() - start) - 0.5) < 0.2
+
+    @duet.sync
+    async def test_scope_timeout_cancels_all_subtasks(self):
+        task_timeouts = []
+
+        async def task():
+            try:
+                await duet.AwaitableFuture()
+            except TimeoutError:
+                task_timeouts.append(True)
+            else:
+                task_timeouts.append(False)
+
+        start = time.time()
+        with pytest.raises(TimeoutError):
+            async with duet.new_scope(timeout=0.5) as scope:
+                scope.spawn(task)
+                scope.spawn(task)
+                await duet.AwaitableFuture()
+        assert abs((time.time() - start) - 0.5) < 0.2
+        assert task_timeouts == [True, True]
 
 
 @pytest.mark.skipif(
