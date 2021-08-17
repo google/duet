@@ -272,13 +272,16 @@ class DeadlineEntry:
     This follows the implementation notes in the stdlib heapq docs:
     https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
 
-    In particular:
-    - Includes a monotonically increasing count on each DeadlineEntry instance to
-        preserve creation order when comparing entries with the same deadline.
-    - Includes a valid flag which is set when the associated Task exits the scope
-        before this deadline elapses. The DeadlineEntry is then marked invalid but
-        left in the priority queue; the Scheduler ignores invalid entries when
-        they elapse.
+    Attributes:
+        task: The task associated with this deadline.
+        deadline: Absolute time when the deadline will elapse.
+        count: Monotonically-increasing counter to preserve creation order when
+            comparing entries with the same deadline.
+        valid: Flag indicating whether the deadline is still valid. If the task
+            exits its scope before the deadline elapses, we mark the deadline as
+            invalid but leave it in the scheduler's priority queue since removal
+            would require an O(n) scan. The scheduler ignores invalid deadlines
+            when they elapse.
     """
 
     _counter = itertools.count()
