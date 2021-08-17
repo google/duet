@@ -277,7 +277,7 @@ def pstarmap_aiter(
 async def sleep(time: float) -> None:
     """Sleeps for the given length of time in seconds."""
     try:
-        async with timeout(time):
+        async with timeout_scope(time):
             await AwaitableFuture()
     except TimeoutError:
         pass
@@ -295,7 +295,7 @@ async def deadline_scope(deadline: float) -> AsyncIterator[None]:
 
 
 @asynccontextmanager
-async def timeout(timeout: float) -> AsyncIterator[None]:
+async def timeout_scope(timeout: float) -> AsyncIterator[None]:
     """Enter a scope that will exit when the timeout elapses.
 
     Args:

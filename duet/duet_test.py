@@ -414,7 +414,7 @@ class TestScope:
     async def test_timeout(self):
         start = time.time()
         with pytest.raises(TimeoutError):
-            async with duet.timeout(0.5):
+            async with duet.timeout_scope(0.5):
                 await duet.AwaitableFuture()
         assert abs((time.time() - start) - 0.5) < 0.2
 
@@ -422,7 +422,7 @@ class TestScope:
     async def test_deadline(self):
         start = time.time()
         with pytest.raises(TimeoutError):
-            async with duet.deadline(time.time() + 0.5):
+            async with duet.deadline_scope(time.time() + 0.5):
                 await duet.AwaitableFuture()
         assert abs((time.time() - start) - 0.5) < 0.2
 
