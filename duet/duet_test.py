@@ -340,8 +340,8 @@ class TestLimiter:
 @duet.sync
 async def test_sleep():
     start = time.time()
-    await duet.sleep(0.2)
-    assert abs((time.time() - start) - 0.2) < 0.02
+    await duet.sleep(0.5)
+    assert abs((time.time() - start) - 0.5) < 0.2
 
 
 class TestScope:
@@ -414,17 +414,17 @@ class TestScope:
     async def test_timeout(self):
         start = time.time()
         with pytest.raises(TimeoutError):
-            async with duet.timeout(0.2):
+            async with duet.timeout(0.5):
                 await duet.AwaitableFuture()
-        assert abs((time.time() - start) - 0.2) < 0.02
+        assert abs((time.time() - start) - 0.5) < 0.2
 
     @duet.sync
     async def test_deadline(self):
         start = time.time()
         with pytest.raises(TimeoutError):
-            async with duet.deadline(time.time() + 0.2):
+            async with duet.deadline(time.time() + 0.5):
                 await duet.AwaitableFuture()
-        assert abs((time.time() - start) - 0.2) < 0.02
+        assert abs((time.time() - start) - 0.5) < 0.2
 
     @duet.sync
     async def test_scope_timeout_cancels_all_subtasks(self):
@@ -440,11 +440,11 @@ class TestScope:
 
         start = time.time()
         with pytest.raises(TimeoutError):
-            async with duet.new_scope(timeout=0.2) as scope:
+            async with duet.new_scope(timeout=0.5) as scope:
                 scope.spawn(task)
                 scope.spawn(task)
                 await duet.AwaitableFuture()
-        assert abs((time.time() - start) - 0.2) < 0.02
+        assert abs((time.time() - start) - 0.5) < 0.2
         assert task_timeouts == [True, True]
 
 

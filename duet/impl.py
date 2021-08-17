@@ -267,6 +267,19 @@ class ReadySet:
 
 @functools.total_ordering
 class DeadlineEntry:
+    """A entry for one Deadline in the Scheduler's priority queue.
+
+    This follows the implementation notes in the stdlib heapq docs:
+    https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
+
+    In particular:
+    - Includes a monotonically increasing count on each DeadlineEntry instance to
+        preserve creation order when comparing entries with the same deadline.
+    - Includes a valid flag which is set when the associated Task exits the scope
+        before this deadline elapses. The DeadlineEntry is then marked invalid but
+        left in the priority queue; the Scheduler ignores invalid entries when
+        they elapse.
+    """
 
     _counter = itertools.count()
 

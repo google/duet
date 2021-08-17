@@ -275,7 +275,7 @@ def pstarmap_aiter(
 
 
 async def sleep(time: float) -> None:
-    """Sleeps for the given length of time"""
+    """Sleeps for the given length of time in seconds."""
     try:
         async with timeout(time):
             await AwaitableFuture()
@@ -284,13 +284,23 @@ async def sleep(time: float) -> None:
 
 
 @asynccontextmanager
-async def deadline(deadline: float) -> AsyncIterator[None]:
+async def deadline_scope(deadline: float) -> AsyncIterator[None]:
+    """Enter a scope that will exit when the deadline elapses.
+
+    Args:
+        deadline: Absolute time in epoch seconds when the scope should exit.
+    """
     async with new_scope(deadline=deadline):
         yield
 
 
 @asynccontextmanager
 async def timeout(timeout: float) -> AsyncIterator[None]:
+    """Enter a scope that will exit when the timeout elapses.
+
+    Args:
+        timeout: Time in seconds from now when the scope should exit.
+    """
     async with new_scope(timeout=timeout):
         yield
 
@@ -311,6 +321,12 @@ async def new_scope(
     If an error is raised by the code in the block itself or by any of the
     spawned tasks, all other background tasks will be interrupted and the block
     will raise an error.
+
+    Args:
+        deadline: Absolute time in epoch seconds when the scope should exit.
+        timeout: Time in seconds from now when the scope should exit. If both
+            deadline and timeout are given, the actual deadline will be
+            whichever one will elapse first.
     """
     main_task = impl.current_task()
     scheduler = main_task.scheduler
