@@ -1,5 +1,7 @@
 # duet
 
+## NOTE: duet-async has been renamed [duet](https://pypi.org/project/duet/). Please use that instead.
+
 A simple future-based async library for python
 
 Duet takes inspiration from the amazing [trio](https://trio.readthedocs.io/en/stable/)
