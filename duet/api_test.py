@@ -412,27 +412,34 @@ class TestScope:
 
     @duet.sync
     async def test_timeout(self):
+        future = duet.AwaitableFuture()
         start = time.time()
         with pytest.raises(TimeoutError):
             async with duet.timeout_scope(0.5):
-                await duet.AwaitableFuture()
+                await future
         assert abs((time.time() - start) - 0.5) < 0.2
+        assert future.cancelled()
 
     @duet.sync
     async def test_deadline(self):
+        future = duet.AwaitableFuture()
         start = time.time()
         with pytest.raises(TimeoutError):
             async with duet.deadline_scope(time.time() + 0.5):
-                await duet.AwaitableFuture()
+                await future
         assert abs((time.time() - start) - 0.5) < 0.2
+        assert future.cancelled()
 
     @duet.sync
     async def test_scope_timeout_cancels_all_subtasks(self):
+        futures = []
         task_timeouts = []
 
         async def task():
             try:
-                await duet.AwaitableFuture()
+                f = duet.AwaitableFuture()
+                futures.append(f)
+                await f
             except TimeoutError:
                 task_timeouts.append(True)
             else:
@@ -446,6 +453,28 @@ class TestScope:
                 await duet.AwaitableFuture()
         assert abs((time.time() - start) - 0.5) < 0.2
         assert task_timeouts == [True, True]
+        assert all(f.cancelled() for f in futures)
+
+    @duet.sync
+    async def test_cancel(self):
+        task_future = duet.AwaitableFuture()
+        scope_future = duet.AwaitableFuture()
+
+        async def main_task():
+            with pytest.raises(duet.CancelledError):
+                async with duet.new_scope() as scope:
+                    scope_future.set_result(scope)
+                    await task_future
+
+        async def cancel_task():
+            scope = await scope_future
+            scope.cancel()
+
+        async with duet.new_scope() as scope:
+            scope.spawn(main_task)
+            scope.spawn(cancel_task)
+
+        assert task_future.cancelled()
 
 
 @pytest.mark.skipif(

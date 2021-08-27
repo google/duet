@@ -171,6 +171,8 @@ class Task(Generic[T]):
             return
         self._interrupt = Interrupt(task, error)
         self._ready_future.try_set_result(None)
+        if self._future:
+            self._future.cancel()
 
     def close(self):
         self._generator.close()
