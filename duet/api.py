@@ -17,6 +17,7 @@ import collections
 import contextlib
 import functools
 import inspect
+from concurrent.futures import CancelledError
 from typing import (
     Any,
     AsyncIterator,
@@ -356,6 +357,9 @@ class Scope:
         self._main_task = main_task
         self._scheduler = scheduler
         self._tasks = tasks
+
+    def cancel(self) -> None:
+        self._main_task.interrupt(self._main_task, CancelledError())
 
     def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
         """Starts a background task that will run the given function."""
