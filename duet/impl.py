@@ -252,6 +252,8 @@ class ReadySet:
         self._buffer.flush()
         with self._cond:
             if not self._tasks:
+                if timeout is not None:
+                    timeout = max(0, min(timeout, threading.TIMEOUT_MAX))
                 if not self._cond.wait(timeout):
                     raise TimeoutError()
             return self._pop_tasks()
@@ -376,13 +378,22 @@ class Scheduler:
             self._interrupted = False
 
         deadline = self.get_next_deadline()
-        timeout = None if deadline is None else max(deadline - self.time(), 0)
-        try:
-            ready_tasks = self._ready_tasks.get_all(timeout)
-        except TimeoutError:
-            for task in self.get_deadline_tasks(deadline):
-                task.interrupt(task, TimeoutError())
+        if deadline is None:
             ready_tasks = self._ready_tasks.get_all(None)
+        else:
+            ready_tasks: List[Task] = []
+            for i in itertools.count():
+                timeout = deadline - self.time()
+                if i and timeout < 0:
+                    break
+                try:
+                    ready_tasks = self._ready_tasks.get_all(timeout)
+                except TimeoutError:
+                    pass
+            if not ready_tasks:
+                for task in self.get_deadline_tasks(deadline):
+                    task.interrupt(task, TimeoutError())
+                ready_tasks = self._ready_tasks.get_all(None)
         for task in ready_tasks:
             try:
                 task.advance()
