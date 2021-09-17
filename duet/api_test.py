@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import inspect
 import sys
 import time
@@ -429,6 +430,15 @@ class TestScope:
                 await future
         assert abs((time.time() - start) - 0.5) < 0.2
         assert future.cancelled()
+
+    @duet.sync
+    async def test_timeout_completes_within_timeout(self):
+        executor = concurrent.futures.ThreadPoolExecutor()
+        start = time.time()
+        async with duet.timeout_scope(10):
+            future = executor.submit(time.sleep, 0.5)
+            await duet.awaitable(future)
+        assert abs((time.time() - start) - 0.5) < 0.2
 
     @duet.sync
     async def test_scope_timeout_cancels_all_subtasks(self):
