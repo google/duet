@@ -393,6 +393,7 @@ class Scheduler:
                     ready_tasks = self._ready_tasks.get_all(
                         min(0, max(timeout, threading.TIMEOUT_MAX))
                     )
+                    break
                 except TimeoutError:
                     pass
             if not ready_tasks:
