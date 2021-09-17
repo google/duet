@@ -242,7 +242,12 @@ class ReadySet:
         If no tasks are ready yet, we flush buffered futures to notify them
         that they should proceed, and then block until one or more tasks become
         ready.
+
+        Raises:
+            ValueError if timeout is < 0 or > threading.TIMEOUT_MAX
         """
+        if timeout is not None and (timeout < 0 or timeout > threading.TIMEOUT_MAX):
+            raise ValueError(f"invalid timeout: {timeout}")
         with self._cond:
             if self._tasks:
                 return self._pop_tasks()
@@ -252,8 +257,6 @@ class ReadySet:
         self._buffer.flush()
         with self._cond:
             if not self._tasks:
-                if timeout is not None:
-                    timeout = max(0, min(timeout, threading.TIMEOUT_MAX))
                 if not self._cond.wait(timeout):
                     raise TimeoutError()
             return self._pop_tasks()
@@ -387,7 +390,9 @@ class Scheduler:
                 if i and timeout < 0:
                     break
                 try:
-                    ready_tasks = self._ready_tasks.get_all(timeout)
+                    ready_tasks = self._ready_tasks.get_all(
+                        min(0, max(timeout, threading.TIMEOUT_MAX))
+                    )
                 except TimeoutError:
                     pass
             if not ready_tasks:
