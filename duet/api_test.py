@@ -433,12 +433,12 @@ class TestScope:
 
     @duet.sync
     async def test_timeout_completes_within_timeout(self):
-        executor = concurrent.futures.ThreadPoolExecutor()
-        start = time.time()
-        async with duet.timeout_scope(10):
-            future = executor.submit(time.sleep, 0.5)
-            await duet.awaitable(future)
-        assert abs((time.time() - start) - 0.5) < 0.2
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            start = time.time()
+            async with duet.timeout_scope(10):
+                future = executor.submit(time.sleep, 0.5)
+                await duet.awaitable(future)
+            assert abs((time.time() - start) - 0.5) < 0.2
 
     @duet.sync
     async def test_scope_timeout_cancels_all_subtasks(self):
