@@ -337,6 +337,7 @@ async def new_scope(
         # Finish remaining tasks while ignoring further interrupts.
         main_task.interruptible = False
         await finish_tasks()
+        main_task.interruptible = True
         # If interrupted, raise the underlying error but suppress the context
         # (the Interrupt itself) when displaying the traceback.
         if isinstance(exc, impl.Interrupt):

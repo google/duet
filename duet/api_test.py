@@ -345,6 +345,14 @@ async def test_sleep():
     assert abs((time.time() - start) - 0.5) < 0.2
 
 
+@duet.sync
+async def test_repeated_sleep():
+    start = time.time()
+    for _ in range(5):
+        await duet.sleep(0.1)
+    assert abs((time.time() - start) - 0.5) < 0.2
+
+
 class TestScope:
     @duet.sync
     async def test_run_all(self):
