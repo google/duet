@@ -68,10 +68,7 @@ LOCALS_TASK_SCHEDULER = "__duet_task_scheduler__"
 
 class Task(Generic[T]):
     def __init__(
-        self,
-        awaitable: Awaitable[T],
-        scheduler: "Scheduler",
-        main_task: Optional["Task"],
+        self, awaitable: Awaitable[T], scheduler: "Scheduler", main_task: Optional["Task"]
     ) -> None:
         self.scheduler = scheduler
         self.main_task = main_task

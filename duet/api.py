@@ -138,9 +138,7 @@ def awaitable_func(function):
 
 
 async def pmap_async(
-    func: Callable[[T], Awaitable[U]],
-    iterable: AnyIterable[T],
-    limit: Optional[int] = None,
+    func: Callable[[T], Awaitable[U]], iterable: AnyIterable[T], limit: Optional[int] = None
 ) -> List[U]:
     """Apply an async function to every item in iterable.
 
@@ -160,9 +158,7 @@ pmap = sync(pmap_async)
 
 
 async def pstarmap_async(
-    func: Callable[..., Awaitable[U]],
-    iterable: AnyIterable[Any],
-    limit: Optional[int] = None,
+    func: Callable[..., Awaitable[U]], iterable: AnyIterable[Any], limit: Optional[int] = None
 ) -> List[U]:
     """Apply an async function to every tuple of args in iterable.
 
@@ -494,29 +490,21 @@ class LimitedScope(abc.ABC):
         self.scope.spawn(func, *args, **kwds)
 
     async def pmap_async(
-        self,
-        func: Callable[[T], Awaitable[U]],
-        iterable: AnyIterable[T],
+        self, func: Callable[[T], Awaitable[U]], iterable: AnyIterable[T]
     ) -> List[U]:
         return [x async for x in self.pmap_aiter(func, iterable)]
 
     def pmap_aiter(
-        self,
-        func: Callable[[T], Awaitable[U]],
-        iterable: AnyIterable[T],
+        self, func: Callable[[T], Awaitable[U]], iterable: AnyIterable[T]
     ) -> AsyncIterator[U]:
         return pmap_aiter(self.scope, func, self.limiter.throttle(iterable))
 
     async def pstarmap_async(
-        self,
-        func: Callable[..., Awaitable[U]],
-        iterable: AnyIterable[Any],
+        self, func: Callable[..., Awaitable[U]], iterable: AnyIterable[Any]
     ) -> List[U]:
         return [x async for x in self.pstarmap_aiter(func, iterable)]
 
     def pstarmap_aiter(
-        self,
-        func: Callable[..., Awaitable[U]],
-        iterable: AnyIterable[Any],
+        self, func: Callable[..., Awaitable[U]], iterable: AnyIterable[Any]
     ) -> AsyncIterator[U]:
         return pstarmap_aiter(self.scope, func, self.limiter.throttle(iterable))
