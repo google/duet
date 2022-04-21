@@ -81,8 +81,9 @@ class Task(Generic[T]):
         self._result: Optional[T] = None
         self._error: Optional[Exception] = None
         self._deadlines: List[DeadlineEntry] = []
-        if main_task and main_task.deadline is not None:
-            self.push_deadline(main_task.deadline)
+        if main_task and main_task.deadline_entry is not None:
+            entry = main_task.deadline_entry
+            self.push_deadline(deadline=entry.deadline, timeout_error=entry.timeout_error)
         self._generator = awaitable.__await__()  # Returns coroutine generator.
         if isinstance(awaitable, Coroutine):
             awaitable.cr_frame.f_locals.setdefault(LOCALS_TASK_SCHEDULER, scheduler)
@@ -149,10 +150,14 @@ class Task(Generic[T]):
         finally:
             _current_task.reset(token)
 
-    def push_deadline(self, deadline: float) -> None:
+    def push_deadline(self, deadline: float, timeout_error: TimeoutError) -> None:
         if self._deadlines:
-            deadline = min(self._deadlines[-1].deadline, deadline)
-        entry = self.scheduler.add_deadline(self, deadline)
+            entry = self._deadlines[-1]
+            if entry.deadline < deadline:
+                deadline = entry.deadline
+                timeout_error = entry.timeout_error
+        entry = DeadlineEntry(self, deadline, timeout_error)
+        self.scheduler.add_deadline(entry)
         self._deadlines.append(entry)
 
     def pop_deadline(self) -> None:
@@ -160,8 +165,8 @@ class Task(Generic[T]):
         entry.valid = False
 
     @property
-    def deadline(self) -> Optional[float]:
-        return self._deadlines[-1].deadline if self._deadlines else None
+    def deadline_entry(self) -> Optional["DeadlineEntry"]:
+        return self._deadlines[-1] if self._deadlines else None
 
     def interrupt(self, task, error):
         if self.done or not self.interruptible or self._interrupt:
@@ -290,9 +295,10 @@ class DeadlineEntry:
 
     _counter = itertools.count()
 
-    def __init__(self, task: Task, deadline: float):
+    def __init__(self, task: Task, deadline: float, timeout_error: TimeoutError):
         self.task = task
         self.deadline = deadline
+        self.timeout_error = timeout_error
         self.count = next(self._counter)
         self._cmp_val = (deadline, self.count)
         self.valid = True
@@ -342,10 +348,8 @@ class Scheduler:
     def time(self) -> float:
         return time.time()
 
-    def add_deadline(self, task: Task, deadline: float) -> DeadlineEntry:
-        entry = DeadlineEntry(task, deadline=deadline)
+    def add_deadline(self, entry: DeadlineEntry) -> None:
         heapq.heappush(self._deadlines, entry)
-        return entry
 
     def get_next_deadline(self) -> Optional[float]:
         while self._deadlines:
@@ -355,11 +359,11 @@ class Scheduler:
             return self._deadlines[0].deadline
         return None
 
-    def get_deadline_tasks(self, deadline: float) -> Iterator[Task]:
+    def get_deadline_entries(self, deadline: float) -> Iterator[DeadlineEntry]:
         while self._deadlines and self._deadlines[0].deadline <= deadline:
             entry = heapq.heappop(self._deadlines)
             if entry.valid:
-                yield entry.task
+                yield entry
 
     def tick(self):
         """Runs the scheduler ahead by one tick.
@@ -394,8 +398,8 @@ class Scheduler:
                 except TimeoutError:
                     pass
             if not ready_tasks:
-                for task in self.get_deadline_tasks(deadline):
-                    task.interrupt(task, TimeoutError())
+                for entry in self.get_deadline_entries(deadline):
+                    entry.task.interrupt(entry.task, entry.timeout_error)
                 ready_tasks = self._ready_tasks.get_all(None)
         for task in ready_tasks:
             try:
