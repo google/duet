@@ -252,11 +252,12 @@ def pstarmap_aiter(
 
 async def sleep(time: float) -> None:
     """Sleeps for the given length of time in seconds."""
-    try:
-        async with timeout_scope(time):
+    async with new_scope(timeout=time) as scope:
+        try:
             await AwaitableFuture()
-    except TimeoutError:
-        pass
+        except TimeoutError as e:
+            if e is not scope._timeout_error:
+                raise
 
 
 @asynccontextmanager
@@ -320,10 +321,11 @@ async def new_scope(
             deadline = scheduler.time() + timeout
         else:
             deadline = min(deadline, scheduler.time() + timeout)
+    scope = Scope(main_task, scheduler, tasks)
     if deadline is not None:
-        main_task.push_deadline(deadline)
+        main_task.push_deadline(deadline, scope._timeout_error)
     try:
-        yield Scope(main_task, scheduler, tasks)
+        yield scope
         await finish_tasks()
     except (impl.Interrupt, Exception) as exc:
         # Interrupt remaining tasks.
@@ -354,6 +356,7 @@ class Scope:
         self._main_task = main_task
         self._scheduler = scheduler
         self._tasks = tasks
+        self._timeout_error = TimeoutError()
 
     def cancel(self) -> None:
         self._main_task.interrupt(self._main_task, CancelledError())
