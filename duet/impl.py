@@ -131,7 +131,7 @@ class Task(Generic[T]):
             self._result = e.value
             self._state = TaskState.SUCCEEDED
             return
-        except (Interrupt, Exception) as error:
+        except BaseException as error:
             self._error = error
             self._state = TaskState.FAILED
             if self.main_task:
@@ -457,7 +457,7 @@ class Scheduler:
             while self.active_tasks:
                 try:
                     self.tick()
-                except Exception:
+                except BaseException:
                     if not error:
                         raise
 
@@ -467,7 +467,7 @@ class Scheduler:
             else:
                 try:
                     finish_tasks()
-                except Exception as exc:
+                except BaseException as exc:
                     finish_tasks(exc)
                     raise
         finally:
