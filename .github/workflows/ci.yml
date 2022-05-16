@@ -7,10 +7,10 @@ jobs:
     name: Format check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v1
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.7'
           architecture: 'x64'
@@ -22,8 +22,8 @@ jobs:
     name: Type check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.7'
           architecture: 'x64'
@@ -37,8 +37,8 @@ jobs:
     name: Lint check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.7'
           architecture: 'x64'
@@ -53,8 +53,8 @@ jobs:
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -69,8 +69,8 @@ jobs:
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -85,8 +85,8 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10']
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -101,8 +101,8 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10']
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
