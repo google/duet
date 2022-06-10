@@ -39,15 +39,6 @@ from duet.futuretools import AwaitableFuture
 T = TypeVar("T")
 U = TypeVar("U")
 
-try:
-    asynccontextmanager = contextlib.asynccontextmanager
-except AttributeError:
-    # In python 3.6 asynccontextmanager isn't available from the standard library, so we are using
-    # equivalent third-party implementation.
-    from aiocontext import async_contextmanager
-
-    asynccontextmanager = async_contextmanager
-
 
 def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
     """Run an async function to completion.
@@ -260,7 +251,7 @@ async def sleep(time: float) -> None:
                 raise
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def deadline_scope(deadline: float) -> AsyncIterator[None]:
     """Enter a scope that will exit when the deadline elapses.
 
@@ -271,7 +262,7 @@ async def deadline_scope(deadline: float) -> AsyncIterator[None]:
         yield
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def timeout_scope(timeout: float) -> AsyncIterator[None]:
     """Enter a scope that will exit when the timeout elapses.
 
@@ -282,7 +273,7 @@ async def timeout_scope(timeout: float) -> AsyncIterator[None]:
         yield
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def new_scope(
     *, deadline: Optional[float] = None, timeout: Optional[float] = None
 ) -> AsyncIterator["Scope"]:
