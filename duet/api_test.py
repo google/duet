@@ -571,9 +571,7 @@ class TestSync:
             async def foo_async(self, a: int) -> int:
                 return a * 3
 
-        with pytest.raises(
-            TypeError, match="Can't instantiate abstract class Foo.*foo_async"
-        ):
+        with pytest.raises(TypeError, match="Can't instantiate abstract class Foo.*foo_async"):
             _ = Foo()
         assert Bar().foo(5) == 15
 
