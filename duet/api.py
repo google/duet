@@ -58,10 +58,12 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
 
 def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
     """Decorator that adds a sync version of async function or method."""
+    if isinstance(f, classmethod):
+        raise TypeError(f"duet.sync cannot be applied to classmethod {f.__func__}")
     sig = inspect.signature(f)
     first_arg = next(iter(sig.parameters), None)
 
-    if first_arg == "self" or first_arg == "cls":
+    if first_arg == "self":
         # For class or instance methods, look up the method to call on the given
         # class or instance. This ensures that we call the right method even it
         # has been overridden in a subclass. To illustrate, consider:
@@ -80,13 +82,15 @@ def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
         # function by name at runtime, using getattr.
 
         @functools.wraps(f)
-        def wrapped(self_or_cls, *args, **kw):
-            method = getattr(self_or_cls, f.__name__, None)
+        def wrapped(self, *args, **kw):
+            method = getattr(self, f.__name__)
             if inspect.ismethod(method) and id(method.__func__) == wrapped_id:
-                return run(f, self_or_cls, *args, **kw)
+                return run(f, self, *args, **kw)
             return run(method, *args, **kw)
 
         wrapped_id = id(wrapped)
+        if getattr(wrapped, "__isabstractmethod__", False):
+            wrapped.__isabstractmethod__ = False  # type: ignore[attr-defined]
     else:
 
         @functools.wraps(f)
