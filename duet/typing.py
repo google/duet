@@ -18,7 +18,7 @@ For more information about mypy plugins see:
 https://mypy.readthedocs.io/en/stable/extending_mypy.html#extending-mypy-using-plugins
 """
 
-from typing import Callable, cast, Optional
+from typing import Callable, Optional
 
 from mypy.plugin import FunctionContext, Plugin
 from mypy.types import CallableType, get_proper_type, Instance, Overloaded, Type
@@ -45,11 +45,11 @@ def duet_sync_callback(ctx: FunctionContext) -> Type:
         return modify_callable(func_type, ctx)
 
     # func_type is overloaded
-    overloaded_callables = [cast(CallableType, modify_callable(ft, ctx)) for ft in func_type.items]
+    overloaded_callables = [modify_callable(ft, ctx) for ft in func_type.items]
     return Overloaded(overloaded_callables)
 
 
-def modify_callable(func_type: CallableType, ctx: FunctionContext) -> Type:
+def modify_callable(func_type: CallableType, ctx: FunctionContext) -> CallableType:
     # Note that the return type of an async function is Coroutine[Any, Any, T],
     # which is a subtype of Awaitable[T]. See:
     # https://mypy.readthedocs.io/en/stable/more_types.html#typing-async-await
@@ -57,7 +57,7 @@ def modify_callable(func_type: CallableType, ctx: FunctionContext) -> Type:
     if not (isinstance(ret_type, Instance) and ret_type.type.name == "Coroutine"):
         if not func_type.implicit:
             ctx.api.msg.fail(f"expected return type Awaitable[T], got {ret_type}", ctx.context)
-        return ctx.default_return_type
+        return func_type
 
     result_type = ret_type.args[-1]
     return func_type.copy_modified(ret_type=result_type)
