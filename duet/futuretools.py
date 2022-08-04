@@ -16,10 +16,7 @@ import threading
 from concurrent.futures import Future
 from typing import Any, Callable, Generator, Generic, Optional, Tuple, Type, TypeVar
 
-try:
-    from typing import Protocol
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[misc]
+from typing_extensions import Protocol
 
 try:
     import grpc
