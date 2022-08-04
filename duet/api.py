@@ -32,15 +32,21 @@ from typing import (
     TypeVar,
 )
 
+try:
+    from typing import ParamSpec
+except ImportError:
+    from typing_extensions import ParamSpec  # type: ignore[assignment]
+
 import duet.impl as impl
 from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector
 from duet.futuretools import AwaitableFuture
 
+P = ParamSpec("P")
 T = TypeVar("T")
 U = TypeVar("U")
 
 
-def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
+def run(func: Callable[P, Awaitable[T]], *args: P.args, **kwds: P.kwargs) -> T:
     """Run an async function to completion.
 
     Args:
@@ -72,7 +78,7 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
         scheduler.cleanup_signals()
 
 
-def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
+def sync(f: Callable[P, Awaitable[T]]) -> Callable[P, T]:
     """Decorator that adds a sync version of async function or method."""
     if isinstance(f, classmethod):
         raise TypeError(f"duet.sync cannot be applied to classmethod {f.__func__}")
@@ -113,7 +119,7 @@ def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
         def wrapped(*args, **kw):
             return run(f, *args, **kw)
 
-    return wrapped
+    return wrapped  # type: ignore[return-value]
 
 
 def awaitable(value):
@@ -375,12 +381,14 @@ class Scope:
     def cancel(self) -> None:
         self._main_task.interrupt(self._main_task, CancelledError())
 
-    def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    def spawn(self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwds: P.kwargs) -> None:
         """Starts a background task that will run the given function."""
         task = self._scheduler.spawn(self._run(func, *args, **kwds), main_task=self._main_task)
         self._tasks.add(task)
 
-    async def _run(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    async def _run(
+        self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwds: P.kwargs
+    ) -> None:
         task = impl.current_task()
         try:
             await func(*args, **kwds)
@@ -513,7 +521,7 @@ class LimitedScope(abc.ABC):
     def limiter(self) -> Limiter:
         pass
 
-    def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    def spawn(self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwds: P.kwargs) -> None:
         """Starts a background task that will run the given function."""
         self.scope.spawn(func, *args, **kwds)
 
