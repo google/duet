@@ -418,6 +418,7 @@ class Limiter:
 
     def _release(self):
         self._count -= 1
+        # Release the first waiter that has not yet been cancelled.
         while self._waiters:
             f = self._waiters.popleft()
             if f.try_set_result(None):
