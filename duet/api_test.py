@@ -390,7 +390,7 @@ class TestLimiter:
 async def test_sleep():
     start = time.time()
     await duet.sleep(0.5)
-    assert abs((time.time() - start) - 0.5) < 0.2
+    assert abs((time.time() - start) - 0.5) < 0.3
 
 
 @duet.sync
@@ -399,7 +399,7 @@ async def test_sleep_with_timeout():
     with pytest.raises(TimeoutError):
         async with duet.timeout_scope(0.5):
             await duet.sleep(10)
-    assert abs((time.time() - start) - 0.5) < 0.2
+    assert abs((time.time() - start) - 0.5) < 0.3
 
 
 @duet.sync
@@ -407,7 +407,7 @@ async def test_repeated_sleep():
     start = time.time()
     for _ in range(5):
         await duet.sleep(0.1)
-    assert abs((time.time() - start) - 0.5) < 0.2
+    assert abs((time.time() - start) - 0.5) < 0.3
 
 
 @duet.sync
@@ -417,7 +417,7 @@ async def test_repeated_sleep_with_timeout():
         async with duet.timeout_scope(0.5):
             for _ in range(5):
                 await duet.sleep(0.2)
-    assert abs((time.time() - start) - 0.5) < 0.2
+    assert abs((time.time() - start) - 0.5) < 0.3
 
 
 class TestScope:
