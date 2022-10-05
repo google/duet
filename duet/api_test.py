@@ -14,11 +14,12 @@
 
 import abc
 import concurrent.futures
+import contextlib
 import inspect
 import sys
 import time
 import traceback
-from typing import List
+from typing import List, Tuple
 
 import pytest
 
@@ -337,6 +338,52 @@ class TestLimiter:
 
         # Ensure that all spawned tasks completed in the right order.
         assert completed == list(range(4))
+
+    @duet.sync
+    async def test_cancel(self) -> None:
+        limiter = duet.Limiter(1)
+
+        async def func(
+            ready: duet.AwaitableFuture[duet.Scope], done: duet.AwaitableFuture[Tuple[bool, bool]]
+        ) -> None:
+            """Acquired and release the lock, and record what happened."""
+            async with duet.new_scope(timeout=1) as scope:
+                ready.set_result(scope)
+                acquired = False
+                cancelled = False
+                try:
+                    async with limiter:
+                        acquired = True
+                except duet.CancelledError:
+                    cancelled = True
+                done.set_result((acquired, cancelled))
+
+        async with contextlib.AsyncExitStack() as exit_stack:
+            scope = await exit_stack.enter_async_context(duet.new_scope())
+
+            # first acquire the lock
+            await exit_stack.enter_async_context(limiter)
+
+            # now spawn two coroutines that will attempt to acquire the lock
+            ready1 = duet.AwaitableFuture[duet.Scope]()
+            done1 = duet.AwaitableFuture[Tuple[bool, bool]]()
+            scope.spawn(func, ready1, done1)
+            scope1 = await ready1
+
+            ready2 = duet.AwaitableFuture[duet.Scope]()
+            done2 = duet.AwaitableFuture[Tuple[bool, bool]]()
+            scope.spawn(func, ready2, done2)
+            _scope2 = await ready2
+
+            # cancel the first waiting coroutine
+            scope1.cancel()
+
+        # ensure that first coroutine was cancelled and second coroutine got the lock.
+        async with duet.new_scope(timeout=0.1):
+            acquired1, cancelled1 = await done1
+            acquired2, cancelled2 = await done2
+            assert cancelled1 and not acquired1
+            assert acquired2 and not cancelled2
 
 
 @duet.sync
