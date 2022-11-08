@@ -205,8 +205,11 @@ async def pmap_aiter(
                 async for i, arg in aenumerate(iterable):
                     slot = await limiter.acquire()
                     gen_scope.spawn(task, i, arg, slot)
-        except Exception as e:
+        except BaseException as e:
             collector.error(e)
+            if isinstance(e, GeneratorExit):
+                # Raise to avoid "coroutine ignored GeneratorExit" errors.
+                raise
         else:
             collector.done()
 
@@ -322,7 +325,7 @@ async def new_scope(
     try:
         yield scope
         await finish_tasks()
-    except (impl.Interrupt, Exception) as exc:
+    except BaseException as exc:
         # Interrupt remaining tasks.
         for task in tasks:
             if not task.done:
@@ -426,7 +429,7 @@ class Limiter:
         if self._available_waiters:
             for f in self._available_waiters:
                 f.try_set_result(None)
-            self._available_waiters = []
+            self._available_waiters.clear()
 
     async def available(self) -> None:
         """Wait until this limiter is available (i.e. not full to capacity).
