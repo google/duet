@@ -441,35 +441,13 @@ class Scheduler:
             frame = frame.f_back
         return False
 
-    def __enter__(self):
+    def init_signals(self) -> None:
         if (
-            threading.current_thread() == threading.main_thread()
-            and signal.getsignal(signal.SIGINT) == signal.default_int_handler
+                threading.current_thread() == threading.main_thread()
+                and signal.getsignal(signal.SIGINT) == signal.default_int_handler
         ):
             self._prev_signal = signal.signal(signal.SIGINT, self._interrupt)
-        return self
 
-    def __exit__(self, exc_type, exc, tb):
-        def finish_tasks(error=None):
-            if error:
-                for task in self.active_tasks:
-                    task.interrupt(None, error)
-            while self.active_tasks:
-                try:
-                    self.tick()
-                except BaseException:
-                    if not error:
-                        raise
-
-        try:
-            if exc:
-                finish_tasks(exc)
-            else:
-                try:
-                    finish_tasks()
-                except BaseException as exc:
-                    finish_tasks(exc)
-                    raise
-        finally:
-            if self._prev_signal:
-                signal.signal(signal.SIGINT, self._prev_signal)
+    def cleanup_signals(self) -> None:
+        if self._prev_signal:
+            signal.signal(signal.SIGINT, self._prev_signal)
