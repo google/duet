@@ -441,13 +441,13 @@ class Scheduler:
             frame = frame.f_back
         return False
 
-    def init_signals(self) -> None:
+    def init_signals(self):
         if (
             threading.current_thread() == threading.main_thread()
             and signal.getsignal(signal.SIGINT) == signal.default_int_handler
         ):
             self._prev_signal = signal.signal(signal.SIGINT, self._interrupt)
 
-    def cleanup_signals(self) -> None:
+    def cleanup_signals(self):
         if self._prev_signal:
             signal.signal(signal.SIGINT, self._prev_signal)
