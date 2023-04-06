@@ -51,9 +51,25 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
     Returns:
         The final result of the async function.
     """
-    with impl.Scheduler() as scheduler:
+    scheduler = impl.Scheduler()
+    scheduler.init_signals()
+    try:
         task = scheduler.spawn(func(*args, **kwds))
-    return task.result
+        try:
+            while scheduler.active_tasks:
+                scheduler.tick()
+        except BaseException as exc:
+            for task in scheduler.active_tasks:
+                task.interrupt(None, exc)
+            while scheduler.active_tasks:
+                try:
+                    scheduler.tick()
+                except BaseException:
+                    pass
+            raise
+        return task.result
+    finally:
+        scheduler.cleanup_signals()
 
 
 def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
