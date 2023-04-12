@@ -1,1 +1,1 @@
-typing-extensions == 3.10.0; python_version <= '3.7'
+typing-extensions >= 3.10.0; python_version <= '3.7'
