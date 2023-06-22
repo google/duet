@@ -42,6 +42,9 @@ class FutureLike(Protocol[T]):
     def add_done_callback(self, fn: Callable[["FutureLike[T]"], Any]) -> None:
         ...
 
+    def cancel(self) -> bool:
+        ...
+
 
 class AwaitableFuture(Future, Generic[T]):
     """A Future that can be awaited."""
