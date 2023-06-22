@@ -29,6 +29,15 @@ def test_awaitable_future():
     assert isinstance(duet.awaitable(Future()), duet.AwaitableFuture)
 
 
+def test_awaitable_future_propagates_cancellation():
+    f = Future()
+    awaitable = duet.AwaitableFuture.wrap(f)
+
+    awaitable.cancel()
+
+    assert f.cancelled()
+
+
 @pytest.mark.skipif(grpc is None, reason="only run if grpc is installed")
 def test_awaitable_grpc_future():
     class ConcreteGrpcFuture(grpc.Future):
