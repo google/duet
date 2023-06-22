@@ -42,6 +42,9 @@ class FutureLike(Protocol[T]):
     def add_done_callback(self, fn: Callable[["FutureLike[T]"], Any]) -> None:
         ...
 
+    def cancel(self) -> bool:
+        ...
+
 
 class AwaitableFuture(Future, Generic[T]):
     """A Future that can be awaited."""
@@ -59,6 +62,10 @@ class AwaitableFuture(Future, Generic[T]):
         """Creates an awaitable future that wraps the given source future."""
         awaitable = AwaitableFuture[T]()
 
+        def cancel(awaitable_future: Future):
+            if awaitable_future.cancelled():
+                future.cancel()
+
         def callback(future: FutureLike[T]):
             error = future.exception()
             if error is None:
@@ -66,6 +73,7 @@ class AwaitableFuture(Future, Generic[T]):
             else:
                 awaitable.try_set_exception(error)
 
+        awaitable.add_done_callback(cancel)
         future.add_done_callback(callback)
         return awaitable
 
