@@ -4,3 +4,4 @@ mypy == 0.931.*
 pylint == 2.10.*
 pytest == 6.2.*
 twine == 3.3.*
+wheel
