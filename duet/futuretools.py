@@ -45,6 +45,9 @@ class FutureLike(Protocol[T]):
     def cancel(self) -> bool:
         ...
 
+    def cancelled(self) -> bool:
+        ...
+
 
 class AwaitableFuture(Future, Generic[T]):
     """A Future that can be awaited."""
@@ -67,6 +70,9 @@ class AwaitableFuture(Future, Generic[T]):
                 future.cancel()
 
         def callback(future: FutureLike[T]):
+            if future.cancelled():
+                return
+
             error = future.exception()
             if error is None:
                 awaitable.try_set_result(future.result())
