@@ -71,13 +71,13 @@ class AwaitableFuture(Future, Generic[T]):
 
         def callback(future: FutureLike[T]):
             if future.cancelled():
-                return
-
-            error = future.exception()
-            if error is None:
-                awaitable.try_set_result(future.result())
+                awaitable.cancel()
             else:
-                awaitable.try_set_exception(error)
+                error = future.exception()
+                if error is None:
+                    awaitable.try_set_result(future.result())
+                else:
+                    awaitable.try_set_exception(error)
 
         awaitable.add_done_callback(cancel)
         future.add_done_callback(callback)
