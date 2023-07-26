@@ -56,7 +56,7 @@ setup(
     url="http://github.com/google/duet",
     author="The Duet Authors",
     author_email="maffoo@google.com",
-    python_requires=">=3.7.0",
+    python_requires=">=3.9.0",
     install_requires=requirements,
     extras_require={
         "dev_env": dev_requirements,
