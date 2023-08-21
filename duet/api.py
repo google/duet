@@ -476,7 +476,7 @@ class Limiter:
 
 
 class Slot:
-    def __init__(self, release_func):
+    def __init__(self, release_func: Callable[[], None]) -> None:
         self.release_func = release_func
         self.called = False
 

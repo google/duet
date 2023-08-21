@@ -19,7 +19,7 @@ from typing import Any, Callable, Generator, Generic, Optional, Tuple, Type, Typ
 try:
     from typing import Protocol
 except ImportError:
-    from typing_extensions import Protocol  # type: ignore[misc]
+    from typing_extensions import Protocol  # type: ignore[assignment]
 
 try:
     import grpc
