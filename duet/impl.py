@@ -43,7 +43,7 @@ T = TypeVar("T")
 
 
 class Interrupt(BaseException):
-    def __init__(self, task, error):
+    def __init__(self, task, error) -> None:
         self.task = task
         self.error = error
 
@@ -219,7 +219,7 @@ def any_ready(tasks: Set[Task]) -> futuretools.AwaitableFuture[None]:
 class ReadySet:
     """Container for an ordered set of tasks that are ready to advance."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cond = threading.Condition()
         self._buffer = futuretools.BufferGroup()
         self._tasks: List[Task] = []
@@ -295,7 +295,7 @@ class DeadlineEntry:
 
     _counter = itertools.count()
 
-    def __init__(self, task: Task, deadline: float, timeout_error: TimeoutError):
+    def __init__(self, task: Task, deadline: float, timeout_error: TimeoutError) -> None:
         self.task = task
         self.deadline = deadline
         self.timeout_error = timeout_error
@@ -365,7 +365,7 @@ class Scheduler:
             if entry.valid:
                 yield entry
 
-    def tick(self):
+    def tick(self) -> None:
         """Runs the scheduler ahead by one tick.
 
         This waits for at least one active task to complete, then advances all
@@ -385,7 +385,7 @@ class Scheduler:
         if deadline is None:
             ready_tasks = self._ready_tasks.get_all(None)
         else:
-            ready_tasks: List[Task] = []
+            ready_tasks = []
             for i in itertools.count():
                 timeout = deadline - self.time()
                 if i and timeout < 0:

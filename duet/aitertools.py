@@ -72,7 +72,7 @@ class AsyncCollector(Generic[T]):
     or direct calls to `__anext__` to iterate over the produced values.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._buffer: Deque[T] = collections.deque()
         self._waiter: Optional[futuretools.AwaitableFuture[None]] = None
         self._done: bool = False
