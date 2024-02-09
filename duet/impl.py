@@ -141,7 +141,7 @@ class Task(Generic[T]):
                 raise
         else:
             if not isinstance(f, Future):
-                raise TypeError(f"expected Future, got {type(f)}: {f}")
+                f = futuretools.failed_future(TypeError(f"expected Future, got {type(f)}: {f}"))
             ready_future = futuretools.AwaitableFuture()
             f.add_done_callback(lambda _: ready_future.try_set_result(None))
             self._future = f

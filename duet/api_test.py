@@ -155,6 +155,14 @@ class TestRun:
         with pytest.raises(Fail):
             duet.run(fail_func)
 
+    def test_await_non_future(self):
+        async def func():
+            with pytest.raises(TypeError):
+                await None
+            return "ok"
+
+        assert duet.run(func) == "ok"
+
 
 class TestPmap:
     def test_ordering(self):
