@@ -163,6 +163,7 @@ class TestRun:
 
         assert duet.run(func) == "ok"
 
+
 class TestPmap:
     def test_ordering(self):
         """pmap results are in order, even if funcs finish out of order."""
