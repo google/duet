@@ -425,7 +425,15 @@ class Limiter:
         if not self.is_available():
             f = AwaitableFuture[None]()
             self._waiters.append(f)
-            await f
+            try:
+                await f
+            except CancelledError:
+                if not f.cancelled():
+                    # Another _release call set our future, but we were then
+                    # cancelled. Call _release to unblock another waiter, but
+                    # don't decrement the count since we didn't increment it.
+                    self._release(decrement=False)
+                raise
         self._count += 1
 
     async def acquire(self) -> "Slot":
@@ -435,8 +443,9 @@ class Limiter:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         self._release()
 
-    def _release(self):
-        self._count -= 1
+    def _release(self, decrement: bool = True) -> None:
+        if decrement:
+            self._count -= 1
         # Release the first waiter that has not yet been cancelled.
         while self._waiters:
             f = self._waiters.popleft()
