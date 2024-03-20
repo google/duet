@@ -393,6 +393,34 @@ class TestLimiter:
             assert cancelled1 and not acquired1
             assert acquired2 and not cancelled2
 
+    @duet.sync
+    async def test_cancel_after_enqueuing(self) -> None:
+        limiter = duet.Limiter(1)
+
+        scope_future = duet.AwaitableFuture[duet.Scope]()
+
+        async def job1() -> None:
+            async with limiter:
+                assert limiter._count == 1
+                scope = await scope_future
+            scope.cancel()
+
+        async def job2() -> None:
+            async with duet.new_scope() as scope:
+                scope_future.set_result(scope)
+                with pytest.raises(duet.CancelledError):
+                    async with limiter:
+                        raise RuntimeError("should not get here")
+
+        async def job3() -> None:
+            async with limiter:
+                pass
+
+        async with duet.new_scope(timeout=1) as scope:
+            scope.spawn(job1)
+            scope.spawn(job2)
+            scope.spawn(job3)
+
 
 @duet.sync
 async def test_sleep():
