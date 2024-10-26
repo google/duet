@@ -23,10 +23,13 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Concatenate,
     Deque,
     Dict,
+    Generic,
     List,
     Optional,
+    overload,
     Set,
     Tuple,
     TypeVar,
@@ -39,6 +42,7 @@ from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector
 from duet.futuretools import AwaitableFuture
 
 P = ParamSpec("P")
+S = TypeVar("S")
 T = TypeVar("T")
 U = TypeVar("U")
 
@@ -76,7 +80,7 @@ def run(func: Callable[P, Awaitable[T]], *args: P.args, **kwds: P.kwargs) -> T:
 
 
 def sync(f: Callable[P, Awaitable[T]]) -> Callable[P, T]:
-    """Decorator that adds a sync version of async function or method."""
+    """Decorator that adds a sync version of an async function or method."""
     if isinstance(f, classmethod):
         raise TypeError(f"duet.sync cannot be applied to classmethod {f.__func__}")
     sig = inspect.signature(f)
@@ -117,6 +121,16 @@ def sync(f: Callable[P, Awaitable[T]]) -> Callable[P, T]:
             return run(f, *args, **kw)
 
     return wrapped  # type: ignore[return-value]
+
+
+def sync_override(f: Callable[P, Awaitable[T]]) -> Callable[[Any], Callable[P, T]]:
+    """Decorator that overrides a base class method with a sync version of an async method.
+
+    Use this instead of `sync` when overriding a method that exists on a base class.
+    The signature and body of the decorated method is ignored and replaced with the
+    synchronous version of the wrapped method.
+    """
+    return lambda _: sync(f)
 
 
 def awaitable(value):

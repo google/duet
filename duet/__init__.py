@@ -53,6 +53,7 @@ from duet.api import (
     Scope,
     sleep,
     sync,
+    sync_override,
     timeout_scope,
 )
 from duet.futuretools import AwaitableFuture, BufferedFuture, completed_future, failed_future
