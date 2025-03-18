@@ -438,6 +438,7 @@ async def test_sleep_with_timeout():
     assert abs((time.time() - start) - 0.5) < 0.3
 
 
+@pytest.mark.xfail(sys.platform == "darwin", reason="MacOS is slow in github CI")
 @duet.sync
 async def test_repeated_sleep():
     start = time.time()
