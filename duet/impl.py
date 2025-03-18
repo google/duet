@@ -14,6 +14,7 @@
 
 """Internal implementation details for duet."""
 
+import contextvars
 import enum
 import functools
 import heapq
@@ -22,7 +23,6 @@ import signal
 import threading
 import time
 from concurrent.futures import Future
-from contextvars import ContextVar
 from typing import (
     Any,
     Awaitable,
@@ -77,6 +77,8 @@ class Task(Generic[T]):
         self._ready_future = futuretools.AwaitableFuture[None]()
         self._ready_future.set_result(None)  # Ready to advance.
         self.interruptible = True
+        self._context = contextvars.copy_context()
+        self._context.run(_current_task.set, self)
         self._interrupt: Optional[Interrupt] = None
         self._result: Optional[T] = None
         self._error: Optional[Exception] = None
@@ -111,11 +113,13 @@ class Task(Generic[T]):
         self._ready_future.add_done_callback(lambda _: callback(self))
 
     def advance(self):
+        return self._context.run(self._advance)
+
+    def _advance(self):
         if self.done:
             return
         if self._state == TaskState.WAITING:
             self._ready_future.result()
-        token = _current_task.set(self)
         try:
             if self._interrupt:
                 interrupt = self._interrupt
@@ -147,8 +151,6 @@ class Task(Generic[T]):
             self._future = f
             self._ready_future = ready_future
             self._state = TaskState.WAITING
-        finally:
-            _current_task.reset(token)
 
     def push_deadline(self, deadline: float, timeout_error: TimeoutError) -> None:
         if self._deadlines:
@@ -182,7 +184,7 @@ class Task(Generic[T]):
         self.main_task = None
 
 
-_current_task: ContextVar[Task] = ContextVar("current_task")
+_current_task: contextvars.ContextVar[Task] = contextvars.ContextVar("current_task")
 
 
 def current_task() -> Task:
