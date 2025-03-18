@@ -15,6 +15,7 @@
 import abc
 import concurrent.futures
 import contextlib
+import contextvars
 import inspect
 import sys
 import time
@@ -668,3 +669,42 @@ class TestSync:
                     return a * 2
 
                 foo = duet.sync(foo_async)
+
+
+_A: contextvars.ContextVar[str] = contextvars.ContextVar("A")
+_B: contextvars.ContextVar[str] = contextvars.ContextVar("B")
+_C: contextvars.ContextVar[str] = contextvars.ContextVar("C")
+
+
+class TestContextVars:
+    def test_context_vars_inherited_by_main_coroutine(self):
+        async def func():
+            await duet.completed_future(None)
+            return _A.get()
+
+        _A.set("1")
+        assert duet.run(func) == "1"
+        _A.set("2")
+        assert duet.run(func) == "2"
+
+    def test_context_vars_inherited_by_spawned_coroutine(self):
+        async def subfunc(results, i):
+            _C.set(f"local{i}")
+            await duet.sleep(0.3 - 0.1 * i)
+            results[i] = {"A": _A.get(), "B": _B.get(), "C": _C.get()}
+
+        async def func():
+            results = {}
+            async with duet.new_scope() as scope:
+                for i in range(3):
+                    _B.set(f"inner{i}")
+                    scope.spawn(subfunc, results, i)
+            return results
+
+        _A.set("outer")
+        results = duet.run(func)
+        assert results == {
+            0: {"A": "outer", "B": "inner0", "C": "local0"},
+            1: {"A": "outer", "B": "inner1", "C": "local1"},
+            2: {"A": "outer", "B": "inner2", "C": "local2"},
+        }
