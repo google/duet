@@ -340,16 +340,18 @@ async def new_scope(
         main_task.push_deadline(deadline, scope._timeout_error)
     try:
         yield scope
-        await finish_tasks()
+        if scope._spawned:
+            await finish_tasks()
     except BaseException as exc:
         # Interrupt remaining tasks.
-        for task in tasks:
-            if not task.done:
-                task.interrupt(main_task, RuntimeError("scope exited"))
-        # Finish remaining tasks while ignoring further interrupts.
-        main_task.interruptible = False
-        await finish_tasks()
-        main_task.interruptible = True
+        if scope._spawned:
+            for task in tasks:
+                if not task.done:
+                    task.interrupt(main_task, RuntimeError("scope exited"))
+            # Finish remaining tasks while ignoring further interrupts.
+            main_task.interruptible = False
+            await finish_tasks()
+            main_task.interruptible = True
         # If interrupted, raise the underlying error but suppress the context
         # (the Interrupt itself) when displaying the traceback.
         if isinstance(exc, impl.Interrupt):
@@ -370,6 +372,7 @@ class Scope:
         self._main_task = main_task
         self._scheduler = scheduler
         self._tasks = tasks
+        self._spawned = False
         self._timeout_error = TimeoutError()
 
     def cancel(self) -> None:
@@ -377,6 +380,7 @@ class Scope:
 
     def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
         """Starts a background task that will run the given function."""
+        self._spawned = True
         task = self._scheduler.spawn(self._run(func, *args, **kwds), main_task=self._main_task)
         self._tasks.add(task)
 
