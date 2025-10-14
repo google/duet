@@ -2,6 +2,6 @@ black == 25.1.0
 isort == 5.7.*
 mypy == 1.5.*
 pylint == 2.10.*
-pytest == 6.2.*
+pytest == 8.4.*
 twine == 3.3.*
 wheel
