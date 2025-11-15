@@ -205,7 +205,7 @@ async def pmap_aiter(
         Asynchronous iterator that yields results in order as they become
         available.
     """
-    collector = AsyncCollector[Tuple[int, U]]()
+    collector: AsyncCollector[Tuple[int, U]] = AsyncCollector()
 
     async def task(i, arg, slot):
         try:
@@ -427,7 +427,7 @@ class Limiter:
 
     async def __aenter__(self) -> None:
         if not self.is_available():
-            f = AwaitableFuture[None]()
+            f: AwaitableFuture[None] = AwaitableFuture()
             self._waiters.append(f)
             try:
                 await f
@@ -467,7 +467,7 @@ class Limiter:
         limiter is currently available, to ensure that throttled iterators do
         not race ahead of downstream work.
         """
-        f = AwaitableFuture[None]()
+        f: AwaitableFuture[None] = AwaitableFuture()
         if self.is_available():
             f.set_result(None)
         else:

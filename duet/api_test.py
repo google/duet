@@ -298,9 +298,9 @@ class TestLimiter:
                 We can await limiter slot acquisition, and await when the task
                 completes.
                 """
-                acq = duet.AwaitableFuture[None]()
-                done = duet.AwaitableFuture[None]()
-                unlock = duet.AwaitableFuture[None]()
+                acq: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+                done: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+                unlock: duet.AwaitableFuture[None] = duet.AwaitableFuture()
 
                 acqs.append(acq)
                 dones.append(done)
@@ -374,13 +374,13 @@ class TestLimiter:
             await exit_stack.enter_async_context(limiter)
 
             # now spawn two coroutines that will attempt to acquire the lock
-            ready1 = duet.AwaitableFuture[duet.Scope]()
-            done1 = duet.AwaitableFuture[Tuple[bool, bool]]()
+            ready1: duet.AwaitableFuture[duet.Scope] = duet.AwaitableFuture()
+            done1: duet.AwaitableFuture[Tuple[bool, bool]] = duet.AwaitableFuture()
             scope.spawn(func, ready1, done1)
             scope1 = await ready1
 
-            ready2 = duet.AwaitableFuture[duet.Scope]()
-            done2 = duet.AwaitableFuture[Tuple[bool, bool]]()
+            ready2: duet.AwaitableFuture[duet.Scope] = duet.AwaitableFuture()
+            done2: duet.AwaitableFuture[Tuple[bool, bool]] = duet.AwaitableFuture()
             scope.spawn(func, ready2, done2)
             _scope2 = await ready2
 
@@ -398,7 +398,7 @@ class TestLimiter:
     async def test_cancel_after_enqueuing(self) -> None:
         limiter = duet.Limiter(1)
 
-        scope_future = duet.AwaitableFuture[duet.Scope]()
+        scope_future: duet.AwaitableFuture[duet.Scope] = duet.AwaitableFuture()
 
         async def job1() -> None:
             async with limiter:

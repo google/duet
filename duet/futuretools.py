@@ -49,7 +49,7 @@ class AwaitableFuture(Future, Generic[T]):
     @staticmethod
     def wrap(future: FutureLike[T]) -> "AwaitableFuture[T]":
         """Creates an awaitable future that wraps the given source future."""
-        awaitable = AwaitableFuture[T]()
+        awaitable: AwaitableFuture[T] = AwaitableFuture()
 
         def cancel(awaitable_future: Future):
             if awaitable_future.cancelled():
@@ -188,13 +188,13 @@ class FutureList(BufferedFuture):
 
 def completed_future(data: T) -> AwaitableFuture[T]:
     """Return a future with the given data as its result."""
-    f = AwaitableFuture[T]()
+    f: AwaitableFuture[T] = AwaitableFuture()
     f.set_result(data)
     return f
 
 
 def failed_future(error: BaseException) -> AwaitableFuture[Any]:
     """Return a future that will fail with the given error."""
-    f = AwaitableFuture[Any]()
+    f: AwaitableFuture[Any] = AwaitableFuture()
     f.set_exception(error)
     return f
