@@ -33,7 +33,12 @@ from typing import (
 )
 
 import duet.impl as impl
-from duet.aitertools import aenumerate, aiter, AnyIterable, AsyncCollector
+from duet.aitertools import (  # pylint: disable=redefined-builtin
+    aenumerate,
+    aiter,
+    AnyIterable,
+    AsyncCollector,
+)
 from duet.futuretools import AwaitableFuture
 
 T = TypeVar("T")

@@ -39,6 +39,7 @@ async def aenumerate(iterable: AnyIterable[T], start: int = 0) -> AsyncIterator[
         i += 1
 
 
+# pylint: disable-next=redefined-builtin
 async def aiter(iterable: AnyIterable[T]) -> AsyncIterator[T]:
     if isinstance(iterable, Iterable):
         for value in iterable:
