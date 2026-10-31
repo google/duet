@@ -17,7 +17,9 @@ import concurrent.futures
 import contextlib
 import contextvars
 import inspect
+import signal
 import sys
+import threading
 import time
 import traceback
 from typing import List, Tuple
@@ -456,6 +458,37 @@ async def test_repeated_sleep_with_timeout():
             for _ in range(5):
                 await duet.sleep(0.2)
     assert abs((time.time() - start) - 0.5) < 0.3
+
+
+def test_sleep_not_cut_short_by_sigint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A SIGINT while the scheduler waits for a deadline doesn't expire it early."""
+    threads: List[threading.Thread] = []
+
+    async def main() -> None:
+        scheduler = impl.current_scheduler()
+        cond = scheduler._ready_tasks._cond
+        wait = cond.wait
+
+        def wait_and_interrupt(timeout=None):
+            # Simulate SIGINT arriving while the scheduler waits for the sleep's
+            # deadline. We hold cond's lock here, so the notify in
+            # ReadySet.interrupt can only happen once we are waiting.
+            if not threads:
+                threads.append(
+                    threading.Thread(target=scheduler._interrupt, args=(signal.SIGINT, None))
+                )
+                threads[0].start()
+            return wait(timeout)
+
+        monkeypatch.setattr(cond, "wait", wait_and_interrupt)
+        # The interrupt is delivered right away; the long sleep only matters if
+        # it is lost, in which case the test fails rather than waiting for it.
+        with pytest.raises(KeyboardInterrupt):
+            await duet.sleep(10)
+
+    duet.run(main)
+    assert len(threads) == 1
+    threads[0].join()
 
 
 class TestScope:

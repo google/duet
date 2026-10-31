@@ -400,6 +400,10 @@ class Scheduler:
                 except TimeoutError:
                     pass
             if not ready_tasks:
+                if self.time() < deadline:
+                    # Woken early by SIGINT (see _interrupt), not by the
+                    # deadline. Return so the next tick delivers it.
+                    return
                 for entry in self.get_deadline_entries(deadline):
                     entry.task.interrupt(entry.task, entry.timeout_error)
                 ready_tasks = self._ready_tasks.get_all(None)
