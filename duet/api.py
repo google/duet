@@ -347,6 +347,13 @@ async def new_scope(
         yield scope
         if scope._spawned:
             await finish_tasks()
+    except GeneratorExit:
+        # An async generator holding this scope open is being closed, maybe
+        # synchronously (e.g. garbage collected), so we can't await our tasks.
+        # Interrupt them and detach them from main_task, which has moved on.
+        for task in tasks:
+            task.detach(RuntimeError("scope exited"))
+        raise
     except BaseException as exc:
         # Interrupt remaining tasks.
         if scope._spawned:

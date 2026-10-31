@@ -20,7 +20,7 @@ import inspect
 import sys
 import time
 import traceback
-from typing import List, Tuple
+from typing import AsyncGenerator, List, Tuple
 
 import pytest
 
@@ -598,6 +598,70 @@ class TestScope:
             scope.spawn(cancel_task)
 
         assert task_future.cancelled()
+
+    # Without the fix, closing the generator fails with an unraisable
+    # "RuntimeError: async generator ignored GeneratorExit", which pytest only
+    # reports as a warning by default.
+    @pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")
+    def test_async_generator_with_scope_closed_when_caller_fails(self) -> None:
+        """A generator with a scope can be closed after the caller fails mid-iteration."""
+
+        async def generate() -> AsyncGenerator[int, None]:
+            async def work(x: int) -> int:
+                await duet.completed_future(None)
+                return x * 2
+
+            async with duet.new_scope() as scope:
+                async for value in duet.pmap_aiter(scope, work, [1, 2, 3, 4]):
+                    yield value
+
+        async def main() -> None:
+            async for _ in generate():
+                raise Fail()
+
+        with pytest.raises(Fail):
+            duet.run(main)
+
+    @pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")
+    @pytest.mark.parametrize("close", ["del", "aclose"])
+    def test_async_generator_with_scope_closed_early(self, close: str) -> None:
+        """Tasks of a scope in a closed generator must not interrupt the caller."""
+        log: List[str] = []
+        child_started: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+
+        async def child() -> None:
+            child_started.set_result(None)
+            try:
+                await duet.AwaitableFuture()  # Never completes.
+            except BaseException:
+                log.append("child interrupted")
+                raise
+
+        async def generate() -> AsyncGenerator[int, None]:
+            async with duet.new_scope() as scope:
+                scope.spawn(child)
+                await child_started
+                yield 1
+                yield 2
+
+        async def main() -> None:
+            gen = generate()
+            async for _ in gen:
+                break
+            if close == "del":
+                del gen  # Closes the generator synchronously.
+            else:
+                await gen.aclose()
+            # Otherwise the sleep below would hang because its timeout cannot
+            # interrupt this task.
+            assert impl.current_task().interruptible
+            # The interrupted child fails, maybe on a later tick. That must not
+            # interrupt this task.
+            await duet.sleep(0.05)
+            log.append("main done")
+
+        duet.run(main)
+        assert log == ["child interrupted", "main done"]
 
 
 @pytest.mark.skipif(
