@@ -357,9 +357,14 @@ async def new_scope(
             main_task.interruptible = False
             await finish_tasks()
             main_task.interruptible = True
-        # If interrupted, raise the underlying error but suppress the context
-        # (the Interrupt itself) when displaying the traceback.
-        if isinstance(exc, impl.Interrupt):
+        # If interrupted by one of our tasks (or by duet.run), raise the
+        # underlying error without the Interrupt as context. An Interrupt from
+        # main_task's parent means main_task's own scope is exiting; re-raise it
+        # unchanged so that `except Exception:` can't swallow it, as if main_task
+        # weren't in this scope.
+        if isinstance(exc, impl.Interrupt) and (
+            main_task.main_task is None or exc.task is not main_task.main_task
+        ):
             exc = exc.error
             exc.__suppress_context__ = True
         raise exc
