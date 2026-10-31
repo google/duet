@@ -35,6 +35,7 @@ from typing import (
     Optional,
     Set,
     TypeVar,
+    Union,
 )
 
 import duet.futuretools as futuretools
@@ -66,12 +67,24 @@ class TaskStateError(Exception):
 LOCALS_TASK_SCHEDULER = "__duet_task_scheduler__"
 
 
+class _Detached:
+    """Main task of detached tasks; drops their failures (see Task.detach)."""
+
+    def interrupt(self, task: "Task", error: BaseException) -> bool:
+        # Refuse, like a task that can't be interrupted, so that a scheduler that
+        # re-posts a refused KeyboardInterrupt still delivers Ctrl-C to another task.
+        return False
+
+
+DETACHED = _Detached()
+
+
 class Task(Generic[T]):
     def __init__(
         self, awaitable: Awaitable[T], scheduler: "Scheduler", main_task: Optional["Task"]
     ) -> None:
         self.scheduler = scheduler
-        self.main_task = main_task
+        self.main_task: Optional[Union[Task, _Detached]] = main_task
         self._state = TaskState.WAITING
         self._future: Optional[Future] = None
         self._ready_future: futuretools.AwaitableFuture[None] = futuretools.AwaitableFuture()
@@ -177,6 +190,16 @@ class Task(Generic[T]):
         self._ready_future.try_set_result(None)
         if self._future:
             self._future.cancel()
+
+    def detach(self, error: BaseException) -> None:
+        """Detaches this task from its main task and interrupts it with error.
+
+        The task keeps running until it handles the interrupt, but its failure
+        will no longer be reported to its former main task. This is used when
+        the main task cannot wait for this task to finish.
+        """
+        self.main_task = DETACHED
+        self.interrupt(DETACHED, error)
 
     def close(self):
         self._generator.close()
