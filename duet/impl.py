@@ -403,9 +403,17 @@ class Scheduler:
                 for entry in self.get_deadline_entries(deadline):
                     entry.task.interrupt(entry.task, entry.timeout_error)
                 ready_tasks = self._ready_tasks.get_all(None)
-        for task in ready_tasks:
+        tasks = iter(ready_tasks)
+        for task in tasks:
             try:
                 task.advance()
+            except BaseException:
+                # A task without a main task, e.g. the root task of duet.run,
+                # raised. Re-register the remaining tasks, which we already took
+                # from the ready set, so that later ticks (e.g. cleanup) advance them.
+                for remaining in tasks:
+                    self._ready_tasks.register(remaining)
+                raise
             finally:
                 if task.done:
                     task.close()
