@@ -422,6 +422,83 @@ class TestLimiter:
             scope.spawn(job2)
             scope.spawn(job3)
 
+    @duet.sync
+    async def test_interrupt_after_wakeup_passes_slot_to_next_waiter(self) -> None:
+        """A waiter interrupted after being woken up must pass its slot on.
+
+        Here the waiter is interrupted by a failing sibling task in its scope, so
+        it gets an Interrupt rather than a CancelledError.
+        """
+        limiter = duet.Limiter(1)
+        holder_entered: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+        release_holder: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+        acquired = []
+
+        async def holder() -> None:
+            async with limiter:
+                holder_entered.set_result(None)
+                await release_holder
+
+        async def interrupted_waiter() -> None:
+            async with limiter:
+                raise RuntimeError("should not get here")
+
+        async def failing_sibling() -> None:
+            await release_holder
+            raise Fail()
+
+        async def next_waiter() -> None:
+            async with limiter:
+                acquired.append(True)
+
+        async def scope_with_interrupted_waiter() -> None:
+            with pytest.raises(Fail):
+                async with duet.new_scope() as scope:
+                    scope.spawn(interrupted_waiter)
+                    await duet.completed_future(None)
+                    scope.spawn(failing_sibling)
+
+        # Without the fix, next_waiter is never woken up, so use a timeout
+        # to fail rather than hang.
+        async with duet.new_scope(timeout=1) as scope:
+            scope.spawn(holder)
+            await holder_entered
+            scope.spawn(scope_with_interrupted_waiter)
+            # Let interrupted_waiter queue on the limiter before spawning next_waiter.
+            await duet.completed_future(None)
+            await duet.completed_future(None)
+            scope.spawn(next_waiter)
+            await duet.completed_future(None)  # Let next_waiter queue.
+            # Both waiters are queued, interrupted_waiter first.
+            assert len(limiter._waiters) == 2
+            # Release holder and fail failing_sibling in the same tick, so that
+            # interrupted_waiter is woken up before it is interrupted.
+            release_holder.set_result(None)
+
+        assert acquired == [True]
+        assert limiter._count == 0
+        assert limiter.is_available()
+
+    def test_waiter_closed_while_waiting_does_not_wake_next_waiter(self) -> None:
+        """A waiter closed while queued (e.g. garbage collected) must not wake another waiter."""
+        limiter = duet.Limiter(1)
+
+        async def main() -> None:
+            await limiter.__aenter__()  # Take the only slot.
+            first = limiter.__aenter__()
+            first.send(None)  # Queued.
+            second = limiter.__aenter__()
+            second.send(None)  # Queued after first.
+            first_future, _ = limiter._waiters
+            second.close()  # GeneratorExit while waiting, as when garbage collected.
+            assert not first_future.done()  # The slot is still held, so first must keep waiting.
+            assert limiter._count == 1
+            first.close()
+            await limiter.__aexit__(None, None, None)
+            assert limiter._count == 0
+
+        duet.run(main)
+
 
 @duet.sync
 async def test_sleep():
