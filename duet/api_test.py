@@ -524,6 +524,33 @@ class TestScope:
         assert isinstance(exc_info.value.__context__, impl.Interrupt)
         assert exc_info.value.__suppress_context__
 
+    def test_interrupt_from_parent_not_converted_to_exception_by_sleep(self) -> None:
+        """A task interrupted by its parent scope can't swallow the interrupt.
+
+        When a scope exits because a task in it failed, it interrupts the
+        other tasks with an Interrupt, which is a BaseException. A nested scope
+        in such a task, here the one in duet.sleep, must not convert that
+        Interrupt into a plain Exception that an `except Exception:` block
+        could catch, letting the task carry on after its scope has exited.
+        """
+        caught: List[Exception] = []
+        sleeping: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+
+        async def func(i: int) -> None:
+            if i == 0:
+                try:
+                    sleeping.set_result(None)
+                    await duet.sleep(10)
+                except Exception as e:
+                    caught.append(e)
+            else:
+                await sleeping  # Fail only once func(0) is inside duet.sleep.
+                raise Fail()
+
+        with pytest.raises(Fail):
+            duet.run(duet.pmap_async, func, [0, 1])
+        assert caught == []
+
     @duet.sync
     async def test_timeout(self):
         future = duet.AwaitableFuture()
