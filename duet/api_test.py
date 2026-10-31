@@ -18,6 +18,7 @@ import contextlib
 import contextvars
 import inspect
 import sys
+import threading
 import time
 import traceback
 from typing import List, Tuple
@@ -163,6 +164,45 @@ class TestRun:
             return "ok"
 
         assert duet.run(func) == "ok"
+
+    def test_failure_does_not_hang_if_other_tasks_ready_in_same_tick(self) -> None:
+        """duet.run cleans up tasks that were ready when the root task failed."""
+        log: List[type] = []
+        main_go: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+
+        async def other() -> None:
+            main_go.set_result(None)
+            try:
+                # Be ready again in the next tick, after the main task.
+                await duet.completed_future(None)
+                await duet.AwaitableFuture()  # Never completes.
+            except BaseException as e:
+                log.append(type(e))
+                raise
+
+        async def main() -> None:
+            # Spawn a task without a main task, like the root task. It is not
+            # waited for by any scope, so the root task can fail while it is
+            # still running.
+            impl.current_scheduler().spawn(other())
+            await main_go
+            raise Fail()
+
+        errors: List[BaseException] = []
+
+        def run() -> None:
+            try:
+                duet.run(main)
+            except BaseException as e:
+                errors.append(e)
+
+        # Without the fix, duet.run hangs, so run it in a thread with a timeout.
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        assert not thread.is_alive(), "duet.run hung"
+        assert [type(e) for e in errors] == [Fail]
+        assert log == [impl.Interrupt]
 
 
 class TestPmap:
