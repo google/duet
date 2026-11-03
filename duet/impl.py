@@ -42,12 +42,6 @@ import duet.futuretools as futuretools
 T = TypeVar("T")
 
 
-class Interrupt(BaseException):
-    def __init__(self, task, error) -> None:
-        self.task = task
-        self.error = error
-
-
 class TaskState(enum.Enum):
     WAITING = 0
     SUCCEEDED = 1
@@ -79,7 +73,7 @@ class Task(Generic[T]):
         self.interruptible = True
         self._context = contextvars.copy_context()
         self._context.run(_current_task.set, self)
-        self._interrupt: Optional[Interrupt] = None
+        self._interrupt: Optional[BaseException] = None
         self._result: Optional[T] = None
         self._error: Optional[Exception] = None
         self._deadlines: List[DeadlineEntry] = []
@@ -126,11 +120,7 @@ class Task(Generic[T]):
             if self._interrupt:
                 interrupt = self._interrupt
                 self._interrupt = None
-                if interrupt.task is self:
-                    error = interrupt.error
-                else:
-                    error = interrupt
-                f = self._generator.throw(error)
+                f = self._generator.throw(interrupt)
             else:
                 f = next(self._generator)
         except StopIteration as e:
@@ -141,7 +131,7 @@ class Task(Generic[T]):
             self._error = error
             self._state = TaskState.FAILED
             if self.main_task:
-                self.main_task.interrupt(self, error)
+                self.main_task.interrupt(error)
                 return
             else:
                 raise
@@ -172,10 +162,10 @@ class Task(Generic[T]):
     def deadline_entry(self) -> Optional["DeadlineEntry"]:
         return self._deadlines[-1] if self._deadlines else None
 
-    def interrupt(self, task, error):
+    def interrupt(self, error: BaseException) -> None:
         if self.done or not self.interruptible or self._interrupt:
             return
-        self._interrupt = Interrupt(task, error)
+        self._interrupt = error
         self._ready_future.try_set_result(None)
         if self._future:
             self._future.cancel()
@@ -382,7 +372,7 @@ class Scheduler:
 
         if self._interrupted:
             task = next(iter(self.active_tasks))
-            task.interrupt(task, KeyboardInterrupt)
+            task.interrupt(KeyboardInterrupt())
             self._interrupted = False
 
         deadline = self.get_next_deadline()
@@ -403,7 +393,7 @@ class Scheduler:
                     pass
             if not ready_tasks:
                 for entry in self.get_deadline_entries(deadline):
-                    entry.task.interrupt(entry.task, entry.timeout_error)
+                    entry.task.interrupt(entry.timeout_error)
                 ready_tasks = self._ready_tasks.get_all(None)
         for task in ready_tasks:
             try:

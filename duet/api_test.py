@@ -20,7 +20,6 @@ import gc
 import inspect
 import sys
 import time
-import traceback
 import weakref
 from collections.abc import Iterator
 from typing import List, Tuple
@@ -28,7 +27,6 @@ from typing import List, Tuple
 import pytest
 
 import duet
-import duet.impl as impl
 
 
 async def mul(a, b):
@@ -586,23 +584,28 @@ class TestScope:
                 after_await = True  # This should not run.
         assert not after_await
 
-    def test_interrupt_not_included_in_stack_trace(self):
-        async def func():
-            async with duet.new_scope() as scope:
-                f = duet.AwaitableFuture()
-                scope.spawn(lambda: f)
-                f.set_exception(ValueError("oops!"))
-                await duet.AwaitableFuture()
+    def test_scope_exit_in_nested_scope(self) -> None:
+        """A task interrupted by its parent scope raises ScopeExit, even in nested scope."""
 
-        with pytest.raises(ValueError, match="oops!") as exc_info:
-            duet.run(func)
+        caught: List[BaseException] = []
+        sleeping: duet.AwaitableFuture[None] = duet.AwaitableFuture()
 
-        stack_trace = "".join(
-            traceback.format_exception(exc_info.type, exc_info.value, exc_info.tb)
-        )
-        assert "Interrupt" not in stack_trace
-        assert isinstance(exc_info.value.__context__, impl.Interrupt)
-        assert exc_info.value.__suppress_context__
+        async def func(i: int) -> None:
+            if i == 0:
+                try:
+                    sleeping.set_result(None)
+                    await duet.sleep(10)
+                except BaseException as e:
+                    caught.append(e)
+                    raise
+            else:
+                await sleeping  # Fail only once func(0) is inside duet.sleep.
+                raise Fail()
+
+        with pytest.raises(Fail):
+            duet.run(duet.pmap_async, func, [0, 1])
+        assert len(caught) == 1
+        assert isinstance(caught[0], duet.ScopeExit)
 
     @duet.sync
     async def test_timeout(self):

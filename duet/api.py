@@ -45,6 +45,10 @@ T = TypeVar("T")
 U = TypeVar("U")
 
 
+class ScopeExit(BaseException):
+    """Raised in a background task when the scope is exiting due to an error."""
+
+
 def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
     """Run an async function to completion.
 
@@ -59,20 +63,20 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
     scheduler = impl.Scheduler()
     scheduler.init_signals()
     try:
-        task = scheduler.spawn(func(*args, **kwds))
+        main_task = scheduler.spawn(func(*args, **kwds))
         try:
             while scheduler.active_tasks:
                 scheduler.tick()
-        except BaseException as exc:
+        except BaseException:
             for task in scheduler.active_tasks:
-                task.interrupt(None, exc)
+                task.interrupt(ScopeExit())
             while scheduler.active_tasks:
                 try:
                     scheduler.tick()
                 except BaseException:
                     pass
             raise
-        return task.take_result()
+        return main_task.take_result()
     finally:
         scheduler.cleanup_signals()
 
@@ -316,7 +320,9 @@ async def new_scope(
     background, and the block will only exit when all spawned tasks are done.
     If an error is raised by the code in the block itself or by any of the
     spawned tasks, all other background tasks will be interrupted and the block
-    will raise an error.
+    will raise an error. Background tasks are interrupted by raising `ScopeExit`,
+    which is a `BaseException` and should not be swallowed, similar to other
+    base exceptions like `KeyboardInterrupt`.
 
     Args:
         deadline: Absolute time in epoch seconds when the scope should exit.
@@ -347,22 +353,17 @@ async def new_scope(
         yield scope
         if scope._spawned:
             await finish_tasks()
-    except BaseException as exc:
+    except BaseException:
         # Interrupt remaining tasks.
         if scope._spawned:
             for task in tasks:
                 if not task.done:
-                    task.interrupt(main_task, RuntimeError("scope exited"))
+                    task.interrupt(ScopeExit())
             # Finish remaining tasks while ignoring further interrupts.
             main_task.interruptible = False
             await finish_tasks()
             main_task.interruptible = True
-        # If interrupted, raise the underlying error but suppress the context
-        # (the Interrupt itself) when displaying the traceback.
-        if isinstance(exc, impl.Interrupt):
-            exc = exc.error
-            exc.__suppress_context__ = True
-        raise exc
+        raise
     finally:
         if deadline is not None:
             main_task.pop_deadline()
@@ -381,7 +382,7 @@ class Scope:
         self._timeout_error = TimeoutError()
 
     def cancel(self) -> None:
-        self._main_task.interrupt(self._main_task, CancelledError())
+        self._main_task.interrupt(CancelledError())
 
     def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
         """Starts a background task that will run the given function."""
