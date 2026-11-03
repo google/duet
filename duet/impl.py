@@ -99,10 +99,12 @@ class Task(Generic[T]):
         self._check_state(TaskState.WAITING)
         return self._future
 
-    @property
-    def result(self) -> T:
+    def take_result(self) -> T:
         self._check_state(TaskState.SUCCEEDED)
-        return cast(T, self._result)
+        result = self._result
+        self._result = None
+        self._future = None
+        return result
 
     @property
     def done(self) -> bool:
