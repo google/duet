@@ -104,7 +104,7 @@ class Task(Generic[T]):
         result = self._result
         self._result = None
         self._future = None
-        return result
+        return cast(T, result)
 
     @property
     def done(self) -> bool:
