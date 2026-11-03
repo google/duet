@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import abc
 import collections
 import contextlib
@@ -23,10 +25,15 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Concatenate,
     Deque,
     Dict,
+    Generic,
     List,
     Optional,
+    overload,
+    ParamSpec,
+    Protocol,
     Set,
     Tuple,
     TypeVar,
@@ -44,8 +51,15 @@ from duet.futuretools import AwaitableFuture
 T = TypeVar("T")
 U = TypeVar("U")
 
+P = ParamSpec("P")
+P1 = ParamSpec("P1")
 
-def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
+Slf = TypeVar("Slf")
+R = TypeVar("R", covariant=True)
+R1 = TypeVar("R1", covariant=True)
+
+
+def run(func: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
     """Run an async function to completion.
 
     Args:
@@ -59,7 +73,7 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
     scheduler = impl.Scheduler()
     scheduler.init_signals()
     try:
-        task = scheduler.spawn(func(*args, **kwds))
+        task = scheduler.spawn(func(*args, **kwargs))
         try:
             while scheduler.active_tasks:
                 scheduler.tick()
@@ -77,7 +91,17 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
         scheduler.cleanup_signals()
 
 
-def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
+class SyncDeco(Generic[P, R], Protocol):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
+    @overload
+    def __get__(self, obj: None, cls: type, /) -> SyncDeco[P, R]: ...
+    @overload
+    def __get__(
+        self: SyncDeco[Concatenate[Slf, P1], R1], obj: Slf, owner: type, /
+    ) -> Callable[P1, R1]: ...
+
+
+def sync(f: Callable[P, Awaitable[R]]) -> SyncDeco[P, R]:
     """Decorator that adds a sync version of async function or method."""
     if isinstance(f, classmethod):
         raise TypeError(f"duet.sync cannot be applied to classmethod {f.__func__}")
@@ -118,7 +142,7 @@ def sync(f: Callable[..., Awaitable[T]]) -> Callable[..., T]:
         def wrapped(*args, **kw):
             return run(f, *args, **kw)
 
-    return wrapped
+    return wrapped  # type: ignore[return-value]
 
 
 def awaitable(value):
@@ -383,16 +407,18 @@ class Scope:
     def cancel(self) -> None:
         self._main_task.interrupt(self._main_task, CancelledError())
 
-    def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    def spawn(self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwargs: P.kwargs) -> None:
         """Starts a background task that will run the given function."""
         self._spawned = True
-        task = self._scheduler.spawn(self._run(func, *args, **kwds), main_task=self._main_task)
+        task = self._scheduler.spawn(self._run(func, *args, **kwargs), main_task=self._main_task)
         self._tasks.add(task)
 
-    async def _run(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    async def _run(
+        self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwargs: P.kwargs
+    ) -> None:
         task = impl.current_task()
         try:
-            await func(*args, **kwds)
+            await func(*args, **kwargs)
         finally:
             self._tasks.discard(task)
 
@@ -522,9 +548,9 @@ class LimitedScope(abc.ABC):
     def limiter(self) -> Limiter:
         pass
 
-    def spawn(self, func: Callable[..., Awaitable[Any]], *args, **kwds) -> None:
+    def spawn(self, func: Callable[P, Awaitable[Any]], *args: P.args, **kwargs: P.kwargs) -> None:
         """Starts a background task that will run the given function."""
-        self.scope.spawn(func, *args, **kwds)
+        self.scope.spawn(func, *args, **kwargs)
 
     async def pmap_async(
         self, func: Callable[[T], Awaitable[U]], iterable: AnyIterable[T]

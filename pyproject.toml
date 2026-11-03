@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 100
-target_version = ['py39', 'py310']
+target_version = ['py310']
 skip-magic-trailing-comma = true
 
 [tool.isort]
