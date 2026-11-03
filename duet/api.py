@@ -436,11 +436,16 @@ class Limiter:
             self._waiters.append(f)
             try:
                 await f
-            except CancelledError:
-                if not f.cancelled():
-                    # Another _release call set our future, but we were then
-                    # cancelled. Call _release to unblock another waiter, after
-                    # incrementing the count since _release will decrement it.
+            except BaseException:
+                # We may be interrupted by any error, not just CancelledError,
+                # e.g. an Interrupt from our scope, a timeout, KeyboardInterrupt
+                # or GeneratorExit (which does not cancel f). Cancel f so it
+                # cannot be set later; this fails only if it was already set.
+                if not f.cancel():
+                    # Another _release call set our future, i.e. handed us its
+                    # slot, but we were then interrupted. Call _release to pass
+                    # the slot on to another waiter, after incrementing the
+                    # count since _release will decrement it.
                     self._count += 1
                     self._release()
                 raise
