@@ -3,5 +3,5 @@ isort == 5.7.*
 mypy == 1.5.*
 pylint == 4.1.*
 pytest == 9.1.*
-twine == 3.3.*
+twine == 7.0.*
 wheel
