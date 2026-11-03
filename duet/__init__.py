@@ -57,6 +57,7 @@ from duet.api import (
     pstarmap_async,
     run,
     Scope,
+    ScopeExit,
     sleep,
     sync,
     timeout_scope,
