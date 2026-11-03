@@ -72,7 +72,7 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
                 except BaseException:
                     pass
             raise
-        return task.result
+        return task.take_result()
     finally:
         scheduler.cleanup_signals()
 

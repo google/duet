@@ -16,10 +16,13 @@ import abc
 import concurrent.futures
 import contextlib
 import contextvars
+import gc
 import inspect
 import sys
 import time
 import traceback
+import weakref
+from collections.abc import Iterator
 from typing import List, Tuple
 
 import pytest
@@ -785,3 +788,45 @@ class TestContextVars:
             1: {"A": "outer", "B": "inner1", "C": "local1"},
             2: {"A": "outer", "B": "inner2", "C": "local2"},
         }
+
+
+class _Payload:
+    """Stand-in for a large result."""
+
+
+async def _make_payload(value: int) -> tuple[_Payload, int]:
+    await duet.completed_future(None)
+    return _Payload(), value
+
+
+async def _payload_from_last_awaited_future() -> _Payload:
+    """Returns a payload that is also held by the future awaited last."""
+    return await duet.completed_future(_Payload())
+
+
+@pytest.fixture(name="gc_disabled")
+def gc_disabled_fixture() -> Iterator[None]:
+    """Disables the cyclic garbage collector, so only reference counting frees objects."""
+    gc.collect()
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.enable()
+
+
+@pytest.mark.usefixtures("gc_disabled")
+def test_run_does_not_keep_result_alive() -> None:
+    """The result is freed by reference counting once the caller drops it."""
+    payload, _ = duet.run(_make_payload, 0)
+    payload_ref = weakref.ref(payload)
+    del payload
+    assert payload_ref() is None
+
+
+@pytest.mark.usefixtures("gc_disabled")
+def test_run_does_not_keep_result_of_last_awaited_future_alive() -> None:
+    payload = duet.run(_payload_from_last_awaited_future)
+    payload_ref = weakref.ref(payload)
+    del payload
+    assert payload_ref() is None
