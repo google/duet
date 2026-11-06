@@ -67,6 +67,9 @@ def run(func: Callable[..., Awaitable[T]], *args, **kwds) -> T:
         try:
             while scheduler.active_tasks:
                 scheduler.tick()
+            if scheduler.interrupt_pending:
+                # Ctrl-C arrived, but no task could take it before the run finished.
+                raise KeyboardInterrupt
         except BaseException:
             for task in scheduler.active_tasks:
                 task.interrupt(ScopeExit())
