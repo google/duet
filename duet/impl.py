@@ -147,6 +147,11 @@ class Task(Generic[T]):
             self._future = f
             self._ready_future = ready_future
             self._state = TaskState.WAITING
+            if self._interrupt:
+                # An interrupt that arrived while the task was running (e.g. it
+                # cancelled its own scope) could only wake the previous step, which
+                # was already done, so wake this step now.
+                self._wake()
 
     def push_deadline(self, deadline: float, timeout_error: TimeoutError) -> None:
         if self._deadlines:
@@ -175,10 +180,14 @@ class Task(Generic[T]):
         if self.done or not self.interruptible or self._interrupt:
             return False
         self._interrupt = error
+        self._wake()
+        return True
+
+    def _wake(self) -> None:
+        """Makes the task ready to advance, cancelling the future it is waiting for."""
         self._ready_future.try_set_result(None)
         if self._future:
             self._future.cancel()
-        return True
 
     def close(self):
         self._generator.close()

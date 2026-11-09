@@ -19,10 +19,11 @@ import contextvars
 import gc
 import inspect
 import sys
+import threading
 import time
 import weakref
 from collections.abc import Iterator
-from typing import List, Tuple
+from typing import Any, Awaitable, Callable, List, Tuple
 
 import pytest
 
@@ -53,6 +54,30 @@ async def fail_before_await():
 
 
 fail_funcs = [fail_after_await, fail_before_await]
+
+
+def run_with_hang_guard(
+    func: Callable[[], Awaitable[Any]], timeout: float = 5
+) -> List[BaseException]:
+    """Runs func with duet.run in a thread and returns the errors it raised.
+
+    Fails if duet.run does not return within timeout. A duet timeout can't be
+    used as the guard: a task with a lost interrupt also ignores later
+    interrupts, including timeouts.
+    """
+    errors: List[BaseException] = []
+
+    def run() -> None:
+        try:
+            duet.run(func)
+        except BaseException as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    assert not thread.is_alive(), "duet.run hung"
+    return errors
 
 
 class TestAwaitableFunc:
@@ -681,6 +706,54 @@ class TestScope:
             scope.spawn(cancel_task)
 
         assert task_future.cancelled()
+
+    def test_cancel_from_own_block(self) -> None:
+        """A scope cancelled from its own block raises CancelledError at the next await."""
+        future: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.cancel()
+                await future
+
+        try:
+            errors = run_with_hang_guard(main)
+        finally:
+            future.try_set_result(None)  # Don't leave the thread blocked if it hung.
+        assert [type(e) for e in errors] == [duet.CancelledError]
+        assert future.cancelled()
+
+    def test_cancel_from_own_block_in_sleep(self) -> None:
+        """A scope cancelled from its own block raises CancelledError in a later sleep."""
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.cancel()
+                await duet.sleep(10)
+
+        errors = run_with_hang_guard(main)
+        assert [type(e) for e in errors] == [duet.CancelledError]
+
+    def test_cancel_from_own_block_interrupts_tasks(self) -> None:
+        """Cancelling a scope from its own block interrupts its background tasks."""
+        task_errors: List[BaseException] = []
+
+        async def task() -> None:
+            try:
+                await duet.AwaitableFuture()  # Never completes.
+            except BaseException as e:
+                task_errors.append(e)
+                raise
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.spawn(task)
+                await duet.completed_future(None)  # Let the task start waiting.
+                scope.cancel()
+
+        errors = run_with_hang_guard(main)
+        assert [type(e) for e in errors] == [duet.CancelledError]
+        assert [type(e) for e in task_errors] == [duet.ScopeExit]
 
 
 @pytest.mark.skipif(
