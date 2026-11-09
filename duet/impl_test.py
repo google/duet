@@ -165,9 +165,11 @@ class TestScheduler:
 
     def test_sigint_pending_when_run_finishes_is_raised(self) -> None:
         """duet.run raises KeyboardInterrupt if no task could take a SIGINT in time."""
+        schedulers: List[impl.Scheduler] = []
 
         async def main() -> str:
             main_task = impl.current_task()
+            schedulers.append(main_task.scheduler)
             main_task.interruptible = False
             main_task.scheduler._interrupt(signal.SIGINT, None)
             await duet.completed_future(None)
@@ -176,6 +178,8 @@ class TestScheduler:
 
         with pytest.raises(KeyboardInterrupt):
             duet.run(main)
+        # The SIGINT was raised, so it must not stay pending as well.
+        assert not schedulers[0].take_interrupt()
 
     def test_sigint_stays_pending_while_no_task_is_interruptible(self) -> None:
         """SIGINT is delivered on a later tick if no task can be interrupted now."""
