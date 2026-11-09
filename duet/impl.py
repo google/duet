@@ -131,7 +131,11 @@ class Task(Generic[T]):
             self._error = error
             self._state = TaskState.FAILED
             if self.main_task:
-                self.main_task.interrupt(error)
+                interrupted = self.main_task.interrupt(error)
+                if not interrupted and isinstance(error, KeyboardInterrupt):
+                    # The main task can't take it now, e.g. it is not interruptible while
+                    # it finishes its tasks after another error. Keep Ctrl-C pending.
+                    self.scheduler.repost_interrupt()
                 return
             else:
                 raise
@@ -162,13 +166,19 @@ class Task(Generic[T]):
     def deadline_entry(self) -> Optional["DeadlineEntry"]:
         return self._deadlines[-1] if self._deadlines else None
 
-    def interrupt(self, error: BaseException) -> None:
+    def interrupt(self, error: BaseException) -> bool:
+        """Interrupts this task with error, if it can be interrupted now.
+
+        Returns False, and does nothing, if this task is done, not interruptible
+        or already has an interrupt pending.
+        """
         if self.done or not self.interruptible or self._interrupt:
-            return
+            return False
         self._interrupt = error
         self._ready_future.try_set_result(None)
         if self._future:
             self._future.cancel()
+        return True
 
     def close(self):
         self._generator.close()
@@ -371,9 +381,15 @@ class Scheduler:
             raise RuntimeError("tick called with no active tasks")
 
         if self._interrupted:
-            task = next(iter(self.active_tasks))
-            task.interrupt(KeyboardInterrupt())
-            self._interrupted = False
+            # Deliver the KeyboardInterrupt to a task that accepts it. Tasks may
+            # be temporarily uninterruptible, e.g. a scope's main task while it
+            # waits for its tasks to finish after an error, or already have an
+            # interrupt pending. If no task accepts it, leave the signal pending
+            # for a later tick.
+            for task in self.active_tasks:
+                if task.interrupt(KeyboardInterrupt()):
+                    self._interrupted = False
+                    break
 
         deadline = self.get_next_deadline()
         if deadline is None:
@@ -404,6 +420,20 @@ class Scheduler:
                     self.active_tasks.discard(task)
                 else:
                     self._ready_tasks.register(task)
+
+    def take_interrupt(self) -> bool:
+        """Clears a SIGINT that has not been delivered to any task yet.
+
+        Returns:
+            Whether there was such a SIGINT.
+        """
+        interrupted = self._interrupted
+        self._interrupted = False
+        return interrupted
+
+    def repost_interrupt(self) -> None:
+        """Keeps a KeyboardInterrupt pending, to deliver to a task on the next tick."""
+        self._interrupted = True
 
     def _interrupt(self, signum: int, frame: Optional[Any]) -> None:
         """Interrupt signal handler used while this scheduler is running.
