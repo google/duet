@@ -322,7 +322,10 @@ async def new_scope(
     spawned tasks, all other background tasks will be interrupted and the block
     will raise an error. Background tasks are interrupted by raising `ScopeExit`,
     which is a `BaseException` and should not be swallowed, similar to other
-    base exceptions like `KeyboardInterrupt`.
+    base exceptions like `KeyboardInterrupt`. The error of a failed background
+    task is raised in the block itself; if the block catches it and exits
+    normally, the error is raised again when the block exits, so that it is
+    not lost.
 
     Args:
         deadline: Absolute time in epoch seconds when the scope should exit.
@@ -351,6 +354,12 @@ async def new_scope(
         main_task.push_deadline(deadline, scope._timeout_error)
     try:
         yield scope
+        if scope._error is not None:
+            # A spawned task failed but the block exited normally, e.g. because
+            # it caught the error that was raised in it. Don't lose the error;
+            # raising it here also interrupts the remaining tasks below.
+            error, scope._error = scope._error, None
+            raise error
         if scope._spawned:
             await finish_tasks()
     except BaseException:
@@ -380,6 +389,7 @@ class Scope:
         self._tasks = tasks
         self._spawned = False
         self._timeout_error = TimeoutError()
+        self._error: Optional[Exception] = None
 
     def cancel(self) -> None:
         self._main_task.interrupt(CancelledError())
@@ -394,6 +404,10 @@ class Scope:
         task = impl.current_task()
         try:
             await func(*args, **kwds)
+        except Exception as e:
+            if self._error is None:
+                self._error = e
+            raise
         finally:
             self._tasks.discard(task)
 

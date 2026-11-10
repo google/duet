@@ -607,6 +607,102 @@ class TestScope:
         assert len(caught) == 1
         assert isinstance(caught[0], duet.ScopeExit)
 
+    @pytest.mark.parametrize("wait", ["future", "nested_scope"])
+    def test_task_error_raised_if_caught_in_block(self, wait: str) -> None:
+        """A failed task's error is raised even if the block catches it."""
+        caught: List[BaseException] = []
+
+        async def fail() -> None:
+            await duet.completed_future(None)
+            raise Fail()
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.spawn(fail)
+                try:
+                    if wait == "future":
+                        await duet.AwaitableFuture()  # Never completes.
+                    else:
+                        await duet.sleep(10)
+                except Exception as e:
+                    caught.append(e)
+
+        with pytest.raises(Fail) as exc_info:
+            duet.run(main)
+        assert len(caught) == 1
+        assert caught[0] is exc_info.value
+
+    def test_block_error_takes_precedence_over_caught_task_error(self) -> None:
+        """If the block catches a task's error and raises another, that one is raised."""
+
+        async def fail() -> None:
+            await duet.completed_future(None)
+            raise Fail()
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.spawn(fail)
+                try:
+                    await duet.AwaitableFuture()  # Never completes.
+                except Fail as e:
+                    raise ValueError("handled") from e
+
+        with pytest.raises(ValueError, match="handled") as exc_info:
+            duet.run(main)
+        assert isinstance(exc_info.value.__cause__, Fail)
+
+    def test_caught_task_error_interrupts_other_tasks(self) -> None:
+        """If the block catches a task's error, the scope still interrupts its other tasks."""
+        caught: List[BaseException] = []
+
+        async def fail() -> None:
+            await duet.completed_future(None)
+            raise Fail()
+
+        async def sleep() -> None:
+            try:
+                await duet.sleep(1)
+            except BaseException as e:
+                caught.append(e)
+                raise
+
+        async def main() -> None:
+            async with duet.new_scope() as scope:
+                scope.spawn(fail)
+                scope.spawn(sleep)
+                try:
+                    await duet.AwaitableFuture()  # Never completes.
+                except Exception:
+                    pass
+
+        start = time.time()
+        with pytest.raises(Fail):
+            duet.run(main)
+        assert [type(e) for e in caught] == [duet.ScopeExit]
+        assert time.time() - start < 0.5
+
+    def test_caught_keyboard_interrupt_from_task_not_reraised(self) -> None:
+        """Only Exceptions are re-raised; a BaseException that the block handled is not."""
+
+        async def interrupt() -> None:
+            await duet.completed_future(None)
+            raise KeyboardInterrupt()
+
+        async def main() -> str:
+            async with duet.new_scope() as scope:
+                scope.spawn(interrupt)
+                try:
+                    await duet.AwaitableFuture()  # Never completes.
+                except KeyboardInterrupt:
+                    pass
+            return "done"
+
+        try:
+            result = duet.run(main)
+        except KeyboardInterrupt:
+            pytest.fail("the handled KeyboardInterrupt was re-raised")
+        assert result == "done"
+
     @duet.sync
     async def test_timeout(self):
         future = duet.AwaitableFuture()
