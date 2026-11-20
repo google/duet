@@ -19,6 +19,7 @@ import contextvars
 import gc
 import inspect
 import sys
+import threading
 import time
 import weakref
 from collections.abc import Iterator
@@ -681,6 +682,124 @@ class TestScope:
             scope.spawn(cancel_task)
 
         assert task_future.cancelled()
+
+    @duet.sync
+    async def test_completed_deadline_scopes_with_subtasks_do_not_block_later_deadlines(
+        self,
+    ) -> None:
+        """Completed child tasks must not leave stale deadlines that stall later sleeps."""
+
+        async def fast_subtask() -> None:
+            await duet.completed_future(None)
+
+        # Create several sequential deadline scopes with distinct timestamps that
+        # all finish well before their deadlines expire.
+        for _ in range(10):
+            async with duet.new_scope(timeout=0.05) as scope:
+                scope.spawn(fast_subtask)
+                scope.spawn(fast_subtask)
+            await duet.sleep(0.005)
+
+        # Sleep past all previous deadlines. Use a background thread watchdog so a
+        # regression fails fast instead of hanging the test suite.
+        watchdog_fired = False
+        stop_watchdog = threading.Event()
+        done: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+
+        async def sleeper() -> None:
+            await duet.sleep(0.15)
+            done.try_set_result(None)
+
+        def watchdog() -> None:
+            nonlocal watchdog_fired
+            if not stop_watchdog.wait(2.0) and done.try_set_result(None):
+                watchdog_fired = True
+
+        thread = threading.Thread(target=watchdog)
+        thread.start()
+        try:
+            try:
+                async with duet.new_scope() as scope:
+                    scope.spawn(sleeper)
+                    await done
+                    scope.cancel()
+            except duet.CancelledError:
+                pass
+        finally:
+            stop_watchdog.set()
+            thread.join()
+        assert not watchdog_fired
+
+    @duet.sync
+    async def test_uninterruptible_scope_cleanup_does_not_block_later_deadlines(self) -> None:
+        """An expired deadline on an uninterruptible task must not stall other deadlines."""
+        release: duet.AwaitableFuture[None] = duet.AwaitableFuture()
+        watchdog_fired = False
+        stop_watchdog = threading.Event()
+
+        async def bg() -> None:
+            try:
+                await duet.AwaitableFuture()
+            finally:
+                # Absorb the inner scope's 0.05s timeout, then wait for sibling's sleep.
+                try:
+                    await release
+                except TimeoutError:
+                    await release
+
+        async def sibling() -> None:
+            await duet.sleep(0.15)
+            release.try_set_result(None)
+
+        def watchdog() -> None:
+            nonlocal watchdog_fired
+            if not stop_watchdog.wait(2.0) and release.try_set_result(None):
+                watchdog_fired = True
+
+        thread = threading.Thread(target=watchdog)
+        thread.start()
+        try:
+            async with duet.new_scope() as outer:
+                outer.spawn(sibling)
+                with pytest.raises(Fail):
+                    # Outer 0.08s deadline expires while main_task is uninterruptible
+                    # waiting for bg() to finish, after bg()'s 0.05s deadline already fired.
+                    async with duet.timeout_scope(0.08):
+                        async with duet.new_scope(timeout=0.05) as inner:
+                            inner.spawn(bg)
+                            await duet.completed_future(None)
+                            raise Fail()
+        finally:
+            stop_watchdog.set()
+            thread.join()
+        assert not watchdog_fired
+
+    @duet.sync
+    async def test_timeout_not_starved_by_ready_tasks(self) -> None:
+        start = time.time()
+        with pytest.raises(TimeoutError):
+            async with duet.timeout_scope(0.05):
+                while True:
+                    await duet.completed_future(None)
+        assert time.time() - start < 1.0
+
+    @duet.sync
+    async def test_completed_subtask_not_retained_by_deadline_queue(self) -> None:
+        payload_refs = []
+
+        async def child() -> None:
+            payload = _Payload()
+            payload_refs.append(weakref.ref(payload))
+            await duet.completed_future(payload)
+
+        async with duet.new_scope(timeout=60) as scope:
+            scope.spawn(child)
+            # Keep a shorter deadline on the heap so the invalidated entry cannot
+            # simply be popped from the top of the heap before this check.
+            await duet.sleep(0.05)
+            gc.collect()
+            assert len(payload_refs) == 1
+            assert payload_refs[0]() is None
 
 
 @pytest.mark.skipif(
